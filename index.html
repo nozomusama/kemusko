@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Kemal'in Oyunları</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    touch-action: manipulation;
+    font-family: "Comic Sans MS", "Chalkboard SE", "Segoe UI", sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    background: linear-gradient(160deg, #7ec8ff 0%, #b3e5fc 45%, #aef3b0 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4vh;
+    padding: 4vw;
+  }
+  .sun {
+    position: fixed;
+    top: 4vh; right: 6vw;
+    font-size: clamp(48px, 12vw, 90px);
+    animation: spin 24s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .cloud {
+    position: fixed;
+    font-size: clamp(40px, 10vw, 72px);
+    opacity: .9;
+    animation: drift 30s linear infinite;
+  }
+  .cloud.c1 { top: 8vh; left: -20vw; }
+  .cloud.c2 { top: 20vh; left: -40vw; animation-duration: 42s; }
+  @keyframes drift { to { transform: translateX(160vw); } }
+  h1 {
+    font-size: clamp(28px, 8vw, 56px);
+    color: #ff5a8a;
+    text-shadow: 3px 3px 0 #fff;
+    text-align: center;
+    z-index: 1;
+  }
+  .menu {
+    display: flex;
+    flex-direction: column;
+    gap: 3vh;
+    width: 100%;
+    max-width: 480px;
+    z-index: 1;
+  }
+  a.game-btn {
+    display: flex;
+    align-items: center;
+    gap: 5vw;
+    text-decoration: none;
+    background: #fff;
+    border-radius: 28px;
+    padding: 3vh 6vw;
+    box-shadow: 0 8px 0 rgba(0,0,0,.12);
+    transition: transform .1s;
+  }
+  a.game-btn:active { transform: scale(.95) translateY(4px); box-shadow: 0 3px 0 rgba(0,0,0,.12); }
+  a.game-btn .icon { font-size: clamp(48px, 14vw, 84px); }
+  a.game-btn .label {
+    font-size: clamp(22px, 6.5vw, 40px);
+    font-weight: bold;
+    color: #444;
+  }
+  a.game-btn.match { border: 6px solid #ffb300; }
+  a.game-btn.run   { border: 6px solid #4caf50; }
+</style>
+</head>
+<body>
+  <div class="sun">🌞</div>
+  <div class="cloud c1">☁️</div>
+  <div class="cloud c2">☁️</div>
+  <h1>🎈 Kemal'in Oyunları 🎈</h1>
+  <nav class="menu">
+    <a class="game-btn match" href="games/eslestirme/index.html">
+      <span class="icon">🐣</span>
+      <span class="label">Eşleştirme</span>
+    </a>
+    <a class="game-btn run" href="games/kosu/index.html">
+      <span class="icon">🐰</span>
+      <span class="label">Zıp Zıp Koşu</span>
+    </a>
+  </nav>
+</body>
+</html>

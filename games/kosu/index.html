@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Zıp Zıp Koşu 🐰</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    touch-action: none;
+    font-family: "Comic Sans MS", "Chalkboard SE", "Segoe UI", sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    background: #87ceeb;
+  }
+  #game { display: block; width: 100vw; height: 100vh; }
+  .home-btn {
+    position: fixed;
+    top: 2vh; left: 3vw;
+    text-decoration: none;
+    font-size: clamp(28px, 8vw, 44px);
+    background: #fff;
+    border-radius: 50%;
+    width: clamp(52px, 14vw, 76px);
+    height: clamp(52px, 14vw, 76px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 5px 0 rgba(0,0,0,.15);
+    z-index: 5;
+  }
+  .home-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.15); }
+  #hint {
+    position: fixed;
+    left: 50%; top: 55%;
+    transform: translate(-50%, -50%);
+    font-size: clamp(48px, 16vw, 100px);
+    animation: pulse 1s infinite alternate;
+    pointer-events: none;
+    z-index: 4;
+  }
+  @keyframes pulse { from { transform: translate(-50%,-50%) scale(1); } to { transform: translate(-50%,-50%) scale(1.25); } }
+  #hint.hidden { display: none; }
+</style>
+</head>
+<body>
+  <a class="home-btn" href="../../index.html">🏠</a>
+  <div id="hint">👆</div>
+  <canvas id="game"></canvas>
+
+<script>
+(function () {
+  "use strict";
+
+  var canvas = document.getElementById("game");
+  var ctx = canvas.getContext("2d");
+  var hintEl = document.getElementById("hint");
+
+  var W = 0, H = 0, DPR = 1, GROUND = 0;
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    GROUND = H * 0.78;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // --- Sesler ---
+  var audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  }
+  function beep(freq, dur, type, delay) {
+    if (!audioCtx) return;
+    var t = audioCtx.currentTime + (delay || 0);
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = type || "sine";
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.22, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + dur);
+  }
+  function soundJump()  { beep(400, 0.12, "triangle"); beep(600, 0.1, "triangle", 0.06); }
+  function soundStar()  { beep(880, 0.12, "sine"); beep(1175, 0.15, "sine", 0.08); }
+  function soundBump()  { beep(160, 0.3, "sawtooth"); }
+  function soundParty() { [523, 659, 784, 1047, 784, 1047].forEach(function (f, i) { beep(f, 0.2, "sine", i * 0.12); }); }
+
+  // --- Oyun durumu ---
+  var bunny = { x: 0, y: 0, vy: 0, jumping: false, dazedUntil: 0 };
+  var obstacles = [];   // {x, emoji, size}
+  var starsArr = [];    // {x, y, size, taken}
+  var particles = [];   // {x, y, vx, vy, life, emoji}
+  var cloudsArr = [];
+  var starCount = 0;
+  var speed = 0;
+  var spawnTimer = 0;
+  var starTimer = 0;
+  var started = false;
+  var lastTime = 0;
+  var celebrating = 0;  // celebration bitiş zamanı
+
+  var OBSTACLE_EMOJIS = ["🪨", "🌵", "🍄", "🪵"];
+  var GRAVITY = 2600;
+  var JUMP_V = -1150;
+
+  function bunnySize() { return Math.min(W, H) * 0.14; }
+
+  function reset() {
+    bunny.x = W * 0.22;
+    bunny.y = GROUND;
+    bunny.vy = 0;
+    bunny.jumping = false;
+    obstacles = [];
+    starsArr = [];
+    particles = [];
+    speed = W * 0.32;
+    spawnTimer = 2;
+    starTimer = 1;
+    cloudsArr = [];
+    for (var i = 0; i < 3; i++) {
+      cloudsArr.push({ x: Math.random() * W, y: H * (0.08 + Math.random() * 0.2), s: 0.6 + Math.random() * 0.8 });
+    }
+  }
+  reset();
+
+  function jump() {
+    ensureAudio();
+    if (!started) {
+      started = true;
+      hintEl.classList.add("hidden");
+    }
+    if (!bunny.jumping) {
+      bunny.vy = JUMP_V * Math.sqrt(H / 700);
+      bunny.jumping = true;
+      soundJump();
+    }
+  }
+  window.addEventListener("pointerdown", function (e) {
+    if (e.target.closest && e.target.closest(".home-btn")) return;
+    jump();
+  });
+
+  function spawnObstacle() {
+    obstacles.push({
+      x: W + 80,
+      emoji: OBSTACLE_EMOJIS[Math.floor(Math.random() * OBSTACLE_EMOJIS.length)],
+      size: bunnySize() * 0.75
+    });
+  }
+  function spawnStar() {
+    var high = Math.random() < 0.5;
+    starsArr.push({
+      x: W + 80,
+      y: GROUND - (high ? bunnySize() * 2.1 : bunnySize() * 0.6),
+      size: bunnySize() * 0.6,
+      taken: false
+    });
+  }
+
+  function burst(x, y, emoji, n) {
+    for (var i = 0; i < n; i++) {
+      particles.push({
+        x: x, y: y,
+        vx: (Math.random() - 0.5) * 500,
+        vy: -Math.random() * 500 - 100,
+        life: 0.9,
+        emoji: emoji
+      });
+    }
+  }
+
+  function update(dt) {
+    if (!started) return;
+
+    var now = performance.now();
+    var partyMode = now < celebrating;
+
+    // Tavşan fiziği
+    if (bunny.jumping) {
+      bunny.vy += GRAVITY * Math.sqrt(H / 700) * dt;
+      bunny.y += bunny.vy * dt;
+      if (bunny.y >= GROUND) {
+        bunny.y = GROUND;
+        bunny.vy = 0;
+        bunny.jumping = false;
+      }
+    }
+
+    // Yavaşça hızlan ama nazik bir sınırda kal
+    speed = Math.min(speed + dt * 3, W * 0.5);
+
+    // Engel ve yıldız üretimi
+    spawnTimer -= dt;
+    if (spawnTimer <= 0 && !partyMode) {
+      spawnObstacle();
+      spawnTimer = 2.2 + Math.random() * 1.6;
+    }
+    starTimer -= dt;
+    if (starTimer <= 0) {
+      spawnStar();
+      starTimer = 1.2 + Math.random() * 1.2;
+    }
+
+    var bs = bunnySize();
+    var dazed = now < bunny.dazedUntil;
+
+    obstacles.forEach(function (ob) { ob.x -= speed * dt; });
+    obstacles = obstacles.filter(function (ob) { return ob.x > -100; });
+
+    // Çarpışma: nazik — sersemletir, oyunu bitirmez
+    if (!dazed) {
+      for (var i = 0; i < obstacles.length; i++) {
+        var ob = obstacles[i];
+        var dx = Math.abs(ob.x - bunny.x);
+        var dy = Math.abs((GROUND - ob.size * 0.4) - bunny.y);
+        if (dx < (bs + ob.size) * 0.32 && dy < bs * 0.6) {
+          bunny.dazedUntil = now + 1200;
+          soundBump();
+          burst(bunny.x, bunny.y - bs * 0.5, "💫", 5);
+          break;
+        }
+      }
+    }
+
+    // Yıldız toplama
+    starsArr.forEach(function (st) {
+      st.x -= speed * dt;
+      if (!st.taken) {
+        var dx = st.x - bunny.x;
+        var dy = st.y - (bunny.y - bs * 0.5);
+        if (dx * dx + dy * dy < (bs * 0.75) * (bs * 0.75)) {
+          st.taken = true;
+          starCount++;
+          soundStar();
+          burst(st.x, st.y, "✨", 6);
+          if (starCount % 10 === 0) {
+            celebrating = now + 3000;
+            soundParty();
+            burst(W / 2, H / 3, "🎉", 20);
+          }
+        }
+      }
+    });
+    starsArr = starsArr.filter(function (st) { return st.x > -100 && !st.taken; });
+
+    // Parçacıklar
+    particles.forEach(function (p) {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 900 * dt;
+      p.life -= dt;
+    });
+    particles = particles.filter(function (p) { return p.life > 0; });
+
+    // Bulutlar
+    cloudsArr.forEach(function (c) {
+      c.x -= speed * 0.15 * c.s * dt;
+      if (c.x < -100) { c.x = W + 100; c.y = H * (0.08 + Math.random() * 0.2); }
+    });
+  }
+
+  function drawEmoji(emoji, x, y, size, angle) {
+    ctx.save();
+    ctx.translate(x, y);
+    if (angle) ctx.rotate(angle);
+    ctx.font = size + "px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(emoji, 0, 0);
+    ctx.restore();
+  }
+
+  function draw() {
+    var now = performance.now();
+    var partyMode = now < celebrating;
+
+    // Gökyüzü
+    var sky = ctx.createLinearGradient(0, 0, 0, H);
+    if (partyMode) {
+      sky.addColorStop(0, "#ffd54f");
+      sky.addColorStop(1, "#ff8a80");
+    } else {
+      sky.addColorStop(0, "#64b5f6");
+      sky.addColorStop(1, "#b3e5fc");
+    }
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    drawEmoji("🌞", W * 0.85, H * 0.12, Math.min(W, H) * 0.12);
+    cloudsArr.forEach(function (c) {
+      drawEmoji("☁️", c.x, c.y, Math.min(W, H) * 0.1 * c.s);
+    });
+
+    // Zemin
+    ctx.fillStyle = partyMode ? "#aed581" : "#81c784";
+    ctx.fillRect(0, GROUND + bunnySize() * 0.35, W, H);
+    ctx.fillStyle = partyMode ? "#9ccc65" : "#66bb6a";
+    ctx.fillRect(0, GROUND + bunnySize() * 0.35, W, 10);
+
+    var bs = bunnySize();
+
+    // Yıldızlar
+    starsArr.forEach(function (st) {
+      var wob = Math.sin(now / 200 + st.x) * 5;
+      drawEmoji("⭐", st.x, st.y + wob, st.size);
+    });
+
+    // Engeller
+    obstacles.forEach(function (ob) {
+      drawEmoji(ob.emoji, ob.x, GROUND + bs * 0.05, ob.size);
+    });
+
+    // Tavşan
+    var dazed = now < bunny.dazedUntil;
+    var blink = dazed && Math.floor(now / 120) % 2 === 0;
+    if (!blink) {
+      var squish = bunny.jumping ? 0 : Math.abs(Math.sin(now / 90)) * 0.06;
+      var runBob = bunny.jumping ? 0 : Math.abs(Math.sin(now / 90)) * bs * 0.08;
+      ctx.save();
+      ctx.translate(bunny.x, bunny.y - bs * 0.45 - runBob);
+      ctx.scale(1 + squish, 1 - squish);
+      ctx.font = bs + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(dazed ? "😵" : "🐰", 0, 0);
+      ctx.restore();
+    }
+
+    // Parçacıklar
+    particles.forEach(function (p) {
+      ctx.globalAlpha = Math.max(p.life, 0);
+      drawEmoji(p.emoji, p.x, p.y, bs * 0.45);
+      ctx.globalAlpha = 1;
+    });
+
+    // Yıldız sayacı
+    ctx.font = "bold " + Math.min(W, H) * 0.055 + "px sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "top";
+    var label = "⭐ " + starCount;
+    var pad = 14;
+    var tw = ctx.measureText(label).width;
+    ctx.fillStyle = "rgba(255,255,255,.85)";
+    var bx = W - tw - pad * 2 - W * 0.03;
+    roundRect(bx, H * 0.025, tw + pad * 2, Math.min(W, H) * 0.075, 16);
+    ctx.fillStyle = "#444";
+    ctx.fillText(label, W - W * 0.03 - pad, H * 0.035);
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function loop(t) {
+    var dt = Math.min((t - lastTime) / 1000, 0.05);
+    lastTime = t;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(function (t) { lastTime = t; requestAnimationFrame(loop); });
+
+  window.addEventListener("resize", reset);
+})();
+</script>
+</body>
+</html>
