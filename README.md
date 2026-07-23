@@ -7,6 +7,7 @@ Kurulum gerekmez — `index.html` dosyasını herhangi bir tarayıcıda açmak y
 
 | Oyun | Tarz | Nasıl oynanır |
 |---|---|---|
+| 🐍 **Yılan Kurtarma** | Bulmaca / mantık | Yılana dokun, baş yönünde kayarak labirentten çıksın. Yolu kapatan yılanları önce kurtar! 12 bölüm, giderek zorlaşır. |
 | 🐣 **Eşleştirme** | Bulmaca / hafıza | Kartlara dokun, aynı hayvanları eşleştir. Her turda kart sayısı biraz artar. |
 | 🐰 **Zıp Zıp Koşu** | Koşu / zıplama | Ekrana dokun, tavşan zıplasın! Yıldızları topla, engellerin üstünden atla. |
 
@@ -35,9 +36,19 @@ telefonun tarayıcısından oynanabilir.
 
 ```
 index.html                    → Ana menü
+games/yilan/index.html        → Yılan Kurtarma oyunu
 games/eslestirme/index.html   → Eşleştirme oyunu
 games/kosu/index.html         → Zıp Zıp Koşu oyunu
+tools/verify-levels.mjs       → Yılan bölümlerinin çözülebilirlik kanıtı
 ```
+
+### Yılan Kurtarma bölümleri hakkında
+
+Bölümler `games/yilan/index.html` içindeki `LEVELS` dizisinde durur. Mekanik
+gereği bir yılanı kurtarmak yolları yalnızca açar; bu yüzden çözülebilir bir
+bölümde çocuk hangi sırayla denerse denesin asla çıkmaza giremez. Yeni bölüm
+eklerseniz `node tools/verify-levels.mjs` çalıştırarak çözülebilirliği
+kanıtlayın.
 
 Her oyun tek bir HTML dosyasıdır (bağımlılık yok), yenisini eklemek için
 `games/` altına klasör açıp ana menüye buton eklemek yeterli.
