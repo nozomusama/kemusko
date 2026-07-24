@@ -51,6 +51,7 @@
   <div id="hint">👆</div>
   <canvas id="game"></canvas>
 
+<script src="../shared/adapt.js"></script>
 <script>
 (function () {
   "use strict";
@@ -58,6 +59,24 @@
   var canvas = document.getElementById("game");
   var ctx = canvas.getContext("2d");
   var hintEl = document.getElementById("hint");
+
+  if (!window.KemalAdapt) {
+    // Paylaşılan modül yüklenemezse basit yedek (kalıcı kayıt tutmaz)
+    window.KemalAdapt = { create: function (g, o) {
+      var lvl = o.start || 0;
+      var streak = 0;
+      return { get level() { return lvl; }, record: function (r) {
+        if (r.hard) { lvl = Math.max(o.min, lvl - 1); streak = 0; }
+        else if (r.smooth && ++streak >= (o.streak || 2)) { lvl = Math.min(o.max, lvl + 1); streak = 0; }
+        else if (!r.smooth) streak = 0;
+        return lvl;
+      } };
+    } };
+  }
+  // Uyarlanabilir zorluk: 25 sn'lik pencerelere göre kademe ayarlanır.
+  // Kademe, engel sıklığını ve hız tavanını belirler.
+  var adapt = window.KemalAdapt.create("kosu", { min: 0, max: 5, start: 0, streak: 1 });
+  var windowDazes = 0, windowStars = 0, evalTimer = 0;
 
   var W = 0, H = 0, DPR = 1, GROUND = 0;
   function resize() {
@@ -189,6 +208,16 @@
     var now = performance.now();
     var partyMode = now < celebrating;
 
+    evalTimer += dt;
+    if (evalTimer >= 25) {
+      adapt.record({
+        hard: windowDazes >= 3,
+        smooth: windowDazes === 0 && windowStars >= 5,
+        carpma: windowDazes, yildiz: windowStars
+      });
+      windowDazes = 0; windowStars = 0; evalTimer = 0;
+    }
+
     // Tavşan fiziği
     if (bunny.jumping) {
       bunny.vy += GRAVITY * Math.sqrt(H / 700) * dt;
@@ -200,14 +229,14 @@
       }
     }
 
-    // Yavaşça hızlan ama nazik bir sınırda kal
-    speed = Math.min(speed + dt * 3, W * 0.5);
+    // Yavaşça hızlan; tavan kademeyle birlikte yükselir
+    speed = Math.min(speed + dt * 3, W * (0.4 + adapt.level * 0.04));
 
     // Engel ve yıldız üretimi
     spawnTimer -= dt;
     if (spawnTimer <= 0 && !partyMode) {
       spawnObstacle();
-      spawnTimer = 2.2 + Math.random() * 1.6;
+      spawnTimer = (2.9 - adapt.level * 0.28) + Math.random() * 1.4;
     }
     starTimer -= dt;
     if (starTimer <= 0) {
@@ -229,6 +258,7 @@
         var dy = Math.abs((GROUND - ob.size * 0.4) - bunny.y);
         if (dx < (bs + ob.size) * 0.32 && dy < bs * 0.6) {
           bunny.dazedUntil = now + 1200;
+          windowDazes++;
           soundBump();
           burst(bunny.x, bunny.y - bs * 0.5, "💫", 5);
           break;
@@ -245,6 +275,7 @@
         if (dx * dx + dy * dy < (bs * 0.75) * (bs * 0.75)) {
           st.taken = true;
           starCount++;
+          windowStars++;
           soundStar();
           burst(st.x, st.y, "✨", 6);
           if (starCount % 10 === 0) {

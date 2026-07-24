@@ -86,6 +86,7 @@
   <canvas id="game"></canvas>
   <div id="celebrate"><div class="msg">🎉</div></div>
 
+<script src="../shared/adapt.js"></script>
 <script>
 (function () {
   "use strict";
@@ -111,21 +112,154 @@
   var headerH = 0;
   var board = { x: 0, y: 0, cell: 40, gw: 4, gh: 4 };
 
-  var levelIdx = 0;
-  var lap = 0;          // kaçıncı tur — renkleri döndürür
   var snakes = [];
   var transitioning = false;
+  var curLevel = null;
+  var bumps = 0;
+  var levelStart = 0;
 
+  /*GEN_START*/
+  // Oyun içi bölüm üretici + çözücü — tools/verify-levels.mjs ile aynı
+  // kurallar. Bir yılanı kurtarmak hücreleri yalnızca boşalttığından
+  // açgözlü çözücü eksiksizdir: kabul edilen her bölüm, hangi sırayla
+  // denenirse denensin çözülebilir.
+  function heading(cells) {
+    return [cells[0][0] - cells[1][0], cells[0][1] - cells[1][1]];
+  }
+  function genKey(x, y) { return x + "," + y; }
+  function genEscapePath(cells, W, H) {
+    var d = heading(cells);
+    var out = [];
+    var x = cells[0][0] + d[0], y = cells[0][1] + d[1];
+    while (x >= 0 && x < W && y >= 0 && y < H) { out.push([x, y]); x += d[0]; y += d[1]; }
+    return out;
+  }
+  function genSelfCross(cells, W, H) {
+    var own = {};
+    cells.forEach(function (c) { own[genKey(c[0], c[1])] = 1; });
+    return genEscapePath(cells, W, H).some(function (c) { return own[genKey(c[0], c[1])]; });
+  }
+  // Çözülebilirse kurtarma dalgası sayısını, değilse -1 döndürür
+  function genSolve(snakesArr, W, H) {
+    var remaining = snakesArr.slice();
+    var rounds = 0;
+    while (remaining.length) {
+      var occ = {};
+      remaining.forEach(function (s) { s.forEach(function (c) { occ[genKey(c[0], c[1])] = 1; }); });
+      var freed = remaining.filter(function (s) {
+        var own = {};
+        s.forEach(function (c) { own[genKey(c[0], c[1])] = 1; });
+        return genEscapePath(s, W, H).every(function (c) {
+          var k = genKey(c[0], c[1]);
+          return !occ[k] || own[k];
+        });
+      });
+      if (!freed.length) return -1;
+      remaining = remaining.filter(function (s) { return freed.indexOf(s) < 0; });
+      rounds++;
+    }
+    return rounds;
+  }
+  var GEN_DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  function genSnakeWalk(W, H, occ, len, rand) {
+    for (var attempt = 0; attempt < 40; attempt++) {
+      var sx = Math.floor(rand() * W), sy = Math.floor(rand() * H);
+      if (occ[genKey(sx, sy)]) continue;
+      var cells = [[sx, sy]];
+      var used = {};
+      used[genKey(sx, sy)] = 1;
+      while (cells.length < len) {
+        var last = cells[cells.length - 1];
+        var opts = GEN_DIRS.map(function (d) { return [last[0] + d[0], last[1] + d[1]]; })
+          .filter(function (c) {
+            return c[0] >= 0 && c[0] < W && c[1] >= 0 && c[1] < H &&
+                   !occ[genKey(c[0], c[1])] && !used[genKey(c[0], c[1])];
+          });
+        if (!opts.length) break;
+        var nxt = opts[Math.floor(rand() * opts.length)];
+        cells.push(nxt);
+        used[genKey(nxt[0], nxt[1])] = 1;
+      }
+      if (cells.length < 3) continue;
+      var cand = rand() < 0.5 ? [cells, cells.slice().reverse()] : [cells.slice().reverse(), cells];
+      for (var i = 0; i < cand.length; i++) {
+        if (!genSelfCross(cand[i], W, H)) return cand[i];
+      }
+    }
+    return null;
+  }
+  function generateLevel(p, rand) {
+    rand = rand || Math.random;
+    for (var pass = 0; pass < 2; pass++) {
+      var needDepth = pass === 0 ? p.minDepth : 1;  // ikinci geçişte derinlik şartı gevşer
+      for (var t = 0; t < 400; t++) {
+        var occ = {};
+        var snakesArr = [];
+        var ok = true;
+        for (var i = 0; i < p.n; i++) {
+          var len = p.minLen + Math.floor(rand() * (p.maxLen - p.minLen + 1));
+          var s = genSnakeWalk(p.w, p.h, occ, len, rand);
+          if (!s) { ok = false; break; }
+          s.forEach(function (c) { occ[genKey(c[0], c[1])] = 1; });
+          snakesArr.push(s);
+        }
+        if (!ok) continue;
+        var rounds = genSolve(snakesArr, p.w, p.h);
+        if (rounds >= needDepth) return { w: p.w, h: p.h, snakes: snakesArr };
+      }
+    }
+    return null;
+  }
+  /*GEN_END*/
+
+  // Zorluk kademeleri — uyarlanabilir sistem bölümleri bu tablodan üretir
+  var TIERS = /*TIERS_START*/[{"w":4,"h":4,"n":1,"minLen":3,"maxLen":3,"minDepth":1},{"w":4,"h":4,"n":2,"minLen":3,"maxLen":3,"minDepth":1},{"w":4,"h":4,"n":2,"minLen":3,"maxLen":4,"minDepth":2},{"w":5,"h":5,"n":3,"minLen":3,"maxLen":4,"minDepth":2},{"w":5,"h":5,"n":4,"minLen":3,"maxLen":4,"minDepth":2},{"w":5,"h":5,"n":5,"minLen":3,"maxLen":4,"minDepth":2},{"w":5,"h":6,"n":5,"minLen":3,"maxLen":5,"minDepth":3},{"w":5,"h":6,"n":6,"minLen":3,"maxLen":5,"minDepth":3},{"w":6,"h":6,"n":6,"minLen":3,"maxLen":5,"minDepth":3},{"w":6,"h":6,"n":7,"minLen":3,"maxLen":5,"minDepth":3},{"w":6,"h":7,"n":7,"minLen":3,"maxLen":6,"minDepth":4},{"w":6,"h":7,"n":8,"minLen":3,"maxLen":6,"minDepth":4}]/*TIERS_END*/;
+
+  if (!window.KemalAdapt) {
+    // Paylaşılan modül yüklenemezse basit yedek (kalıcı kayıt tutmaz)
+    window.KemalAdapt = { create: function (g, o) {
+      var lvl = o.start || 0;
+      var streak = 0;
+      return { get level() { return lvl; }, record: function (r) {
+        if (r.hard) { lvl = Math.max(o.min, lvl - 1); streak = 0; }
+        else if (r.smooth && ++streak >= (o.streak || 2)) { lvl = Math.min(o.max, lvl + 1); streak = 0; }
+        else if (!r.smooth) streak = 0;
+        return lvl;
+      } };
+    } };
+  }
+
+  // Eski kayıt biçiminden geçiş + ilerleme durumu
+  var progress = null;
+  var startTier = 0;
   try {
-    var saved = JSON.parse(localStorage.getItem("yilan-progress") || "null");
-    if (saved && typeof saved.lvl === "number" && saved.lvl >= 0 && saved.lvl < LEVELS.length) {
-      levelIdx = saved.lvl;
-      lap = saved.lap || 0;
+    progress = JSON.parse(localStorage.getItem("yilan-progress2") || "null");
+    if (!progress) {
+      var old = JSON.parse(localStorage.getItem("yilan-progress") || "null");
+      if (old && typeof old.lvl === "number") {
+        startTier = Math.max(0, Math.min(TIERS.length - 1, old.lvl));
+        progress = { num: (old.lap || 0) * 12 + old.lvl + 1, seen: [] };
+      }
     }
   } catch (e) { /* localStorage kapalıysa baştan başla */ }
+  if (!progress || typeof progress.num !== "number" || !Array.isArray(progress.seen)) {
+    progress = { num: 1, seen: [] };
+  }
+  var adapt = window.KemalAdapt.create("yilan", { min: 0, max: TIERS.length - 1, start: startTier, streak: 2 });
 
   function saveProgress() {
-    try { localStorage.setItem("yilan-progress", JSON.stringify({ lvl: levelIdx, lap: lap })); } catch (e) {}
+    try { localStorage.setItem("yilan-progress2", JSON.stringify(progress)); } catch (e) {}
+  }
+
+  // İlk kez ulaşılan kademede el yapımı bölüm; sonrasında cihazda taze üretim
+  function getNextLevel() {
+    var tier = adapt.level;
+    if (progress.seen.indexOf(tier) < 0 && LEVELS[tier]) {
+      progress.seen.push(tier);
+      saveProgress();
+      return LEVELS[tier];
+    }
+    return generateLevel(TIERS[tier]) || LEVELS[Math.min(tier, LEVELS.length - 1)];
   }
 
   // --- Sesler ---
@@ -183,7 +317,8 @@
   }
 
   function layoutBoard() {
-    var lv = LEVELS[levelIdx];
+    if (!curLevel) return;
+    var lv = curLevel;
     board.gw = lv.w;
     board.gh = lv.h;
     var pad = Math.min(W, H) * 0.045;
@@ -196,10 +331,6 @@
 
   function center(cx, cy) {
     return { x: board.x + (cx + 0.5) * board.cell, y: board.y + (cy + 0.5) * board.cell };
-  }
-
-  function heading(cells) {
-    return [cells[0][0] - cells[1][0], cells[0][1] - cells[1][1]];
   }
 
   // Kuyruk→baş noktaları + baş yönünde ekranın dışına kadar uzatma.
@@ -237,12 +368,14 @@
   }
 
   function loadLevel() {
-    var lv = LEVELS[levelIdx];
+    curLevel = getNextLevel();
     layoutBoard();
-    snakes = lv.snakes.map(function (cells, i) {
+    bumps = 0;
+    levelStart = performance.now();
+    snakes = curLevel.snakes.map(function (cells, i) {
       var s = {
         cells: cells,
-        color: PALETTE[(i + lap * 3) % PALETTE.length],
+        color: PALETTE[(i + progress.num) % PALETTE.length],
         phase: i * 1.7,
         state: "idle",   // idle | escaping | gone
         p: 0,            // kaçış ilerlemesi (piksel yayı)
@@ -254,7 +387,7 @@
       return s;
     });
     transitioning = false;
-    levelBadge.textContent = "Bölüm " + (levelIdx + 1);
+    levelBadge.textContent = "Bölüm " + progress.num;
     updateLeft();
   }
 
@@ -266,15 +399,7 @@
   function cellKey(x, y) { return x + "," + y; }
 
   function escapeCells(s) {
-    var dir = heading(s.cells);
-    var lv = LEVELS[levelIdx];
-    var cells = [];
-    var x = s.cells[0][0] + dir[0], y = s.cells[0][1] + dir[1];
-    while (x >= 0 && x < lv.w && y >= 0 && y < lv.h) {
-      cells.push([x, y]);
-      x += dir[0]; y += dir[1];
-    }
-    return cells;
+    return genEscapePath(s.cells, curLevel.w, curLevel.h);
   }
 
   // Tahtadan tamamen çıkmamış her yılan (kaçmakta olanlar dahil) yolu kapatır;
@@ -298,6 +423,7 @@
     var blocker = findBlocker(s);
     var now = performance.now();
     if (blocker) {
+      bumps++;
       s.bumpStart = now;
       blocker.flashUntil = now + 900;
       soundBump();
@@ -362,17 +488,25 @@
 
   function levelClear() {
     transitioning = true;
-    var isLast = levelIdx === LEVELS.length - 1;
-    celebrateMsg.textContent = isLast ? "🏆" : "🎉";
+    var dur = (performance.now() - levelStart) / 1000;
+    var n = snakes.length;
+    var par = 6 + n * 7;   // kaba hedef süre (sn)
+    adapt.record({
+      hard: bumps >= n * 2 + 3 || dur > par * 2.5,
+      smooth: bumps <= Math.ceil(n / 2) && dur <= par,
+      bolum: progress.num, yilan: n, carpma: bumps, sure: Math.round(dur)
+    });
+    var isTrophy = progress.num % 12 === 0;
+    celebrateMsg.textContent = isTrophy ? "🏆" : "🎉";
     celebrateEl.classList.add("show");
-    throwConfetti(isLast ? 44 : 26);
-    if (isLast) soundTrophy(); else soundWin();
+    throwConfetti(isTrophy ? 44 : 26);
+    if (isTrophy) soundTrophy(); else soundWin();
     setTimeout(function () {
       celebrateEl.classList.remove("show");
-      if (isLast) { levelIdx = 0; lap++; } else { levelIdx++; }
+      progress.num++;
       saveProgress();
       loadLevel();
-    }, isLast ? 3400 : 2400);
+    }, isTrophy ? 3400 : 2400);
   }
 
   var CONFETTI = ["🎉", "⭐", "🎈", "✨", "💚", "🐍"];
@@ -397,7 +531,7 @@
   }
 
   function drawBoard() {
-    var lv = LEVELS[levelIdx];
+    var lv = curLevel;
     var r = board.cell * 0.3;
     ctx.fillStyle = "rgba(255,255,255,.55)";
     roundRect(board.x - board.cell * 0.15, board.y - board.cell * 0.15,

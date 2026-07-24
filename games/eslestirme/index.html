@@ -140,6 +140,7 @@
   <main id="board"></main>
   <div id="celebrate"><div class="msg">🎉</div></div>
 
+<script src="../shared/adapt.js"></script>
 <script>
 (function () {
   "use strict";
@@ -150,12 +151,29 @@
   var celebrateEl = document.getElementById("celebrate");
 
   var stars = 0;
-  var round = 0;          // her turda biraz büyür: 2, 3, 4, 6 çift
-  var PAIRS_BY_ROUND = [2, 3, 4, 6];
   var locked = false;
   var firstCard = null;
   var matchedCount = 0;
   var totalPairs = 0;
+  var mismatches = 0;
+  var roundStart = 0;
+
+  if (!window.KemalAdapt) {
+    // Paylaşılan modül yüklenemezse basit yedek (kalıcı kayıt tutmaz)
+    window.KemalAdapt = { create: function (g, o) {
+      var lvl = o.start || 0;
+      var streak = 0;
+      return { get level() { return lvl; }, record: function (r) {
+        if (r.hard) { lvl = Math.max(o.min, lvl - 1); streak = 0; }
+        else if (r.smooth && ++streak >= (o.streak || 2)) { lvl = Math.min(o.max, lvl + 1); streak = 0; }
+        else if (!r.smooth) streak = 0;
+        return lvl;
+      } };
+    } };
+  }
+  // Kademeye göre çift sayısı: rahat geçen büyür, zorlanan küçülür
+  var PAIRS_BY_TIER = [2, 3, 4, 5, 6, 8];
+  var adapt = window.KemalAdapt.create("eslestirme", { min: 0, max: PAIRS_BY_TIER.length - 1, start: 0, streak: 2 });
 
   // --- Basit sesler (WebAudio, dosya gerekmez) ---
   var audioCtx = null;
@@ -200,8 +218,10 @@
   }
 
   function newRound() {
-    totalPairs = PAIRS_BY_ROUND[Math.min(round, PAIRS_BY_ROUND.length - 1)];
+    totalPairs = PAIRS_BY_TIER[adapt.level];
     matchedCount = 0;
+    mismatches = 0;
+    roundStart = performance.now();
     firstCard = null;
     locked = false;
     board.innerHTML = "";
@@ -249,6 +269,7 @@
         setTimeout(winRound, 500);
       }
     } else {
+      mismatches++;
       locked = true;
       setTimeout(function () {
         a.classList.add("wrong");
@@ -264,12 +285,17 @@
   }
 
   function winRound() {
+    var dur = (performance.now() - roundStart) / 1000;
+    adapt.record({
+      hard: mismatches >= totalPairs * 2.5,
+      smooth: mismatches <= totalPairs,
+      cift: totalPairs, hata: mismatches, sure: Math.round(dur)
+    });
     soundWin();
     celebrateEl.classList.add("show");
     throwConfetti();
     setTimeout(function () {
       celebrateEl.classList.remove("show");
-      round++;
       newRound();
     }, 2600);
   }
