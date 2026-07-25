@@ -73,6 +73,7 @@ games/eslestirme/index.html   → Eşleştirme oyunu
 games/kosu/index.html         → Zıp Zıp Koşu oyunu
 tools/verify-levels.mjs       → Yılan bölümlerinin çözülebilirlik kanıtı
 tools/test-yilan-generator.mjs→ Yılan oyun içi üreticisinin sınaması
+tools/smoke-yilan.mjs         → Yılan uçtan uca tarayıcı testi (Playwright)
 tools/verify-boyama.mjs       → Boyama kademe/figür verisi denetimi
 tools/smoke-boyama.mjs        → Boyama uçtan uca tarayıcı testi (Playwright)
 ```

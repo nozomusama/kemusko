@@ -406,13 +406,32 @@
     return genEscapePath(s.cells, curLevel.w, curLevel.h);
   }
 
-  // Tahtadan tamamen çıkmamış her yılan (kaçmakta olanlar dahil) yolu kapatır;
-  // böylece iki yılan asla üst üste binmez.
+  // Kaçmakta olan yılanın ANLIK olarak işgal ettiği hücreler. Yılan ilerledikçe
+  // arkasındaki hücreler serbest kalır; böylece önü açılan yılan hemen hareket
+  // edebilir, kaçanın ekrandan tamamen çıkması beklenmez. Kuyruğun bulunduğu
+  // hücre tam terk edilene kadar dolu sayılır (üst üste binme olmaz).
+  function occupiedCells(s) {
+    if (s.state !== "escaping") return s.cells;
+    var n = s.cells.length;
+    var adv = Math.floor(s.p / board.cell);   // kaç tam hücre ilerledi
+    var dir = heading(s.cells);
+    var out = [];
+    for (var i = adv; i < adv + n; i++) {
+      var c = i < n
+        ? s.cells[n - 1 - i]                  // gövde: kuyruktan başa
+        : [s.cells[0][0] + dir[0] * (i - n + 1),
+           s.cells[0][1] + dir[1] * (i - n + 1)];   // baş: kaçış hattında
+      if (c[0] >= 0 && c[0] < curLevel.w && c[1] >= 0 && c[1] < curLevel.h) out.push(c);
+    }
+    return out;
+  }
+
+  // Tahtada hâlâ yer kaplayan her yılan yolu kapatır.
   function findBlocker(s) {
     var occ = {};
     snakes.forEach(function (o) {
       if (o === s || o.state === "gone") return;
-      o.cells.forEach(function (c) { occ[cellKey(c[0], c[1])] = o; });
+      occupiedCells(o).forEach(function (c) { occ[cellKey(c[0], c[1])] = o; });
     });
     var path = escapeCells(s);
     for (var i = 0; i < path.length; i++) {
@@ -690,6 +709,17 @@
       });
     }
   });
+
+  // Salt-okunur test kancası (oyun davranışını etkilemez)
+  window.__yilanDebug = {
+    cellPos: function (x, y) { return center(x, y); },
+    snakes: function () {
+      return snakes.map(function (s) {
+        return { state: s.state, head: s.cells[0], cells: occupiedCells(s) };
+      });
+    },
+    level: function () { return { w: curLevel.w, h: curLevel.h, n: snakes.length }; }
+  };
 
   resize();
   loadLevel();
