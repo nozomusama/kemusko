@@ -78,6 +78,26 @@
   a.game-btn.snake { border: 6px solid #ab47bc; }
   a.game-btn.paint { border: 6px solid #ec407a; }
   a.game-btn.steps { border: 6px solid #26a69a; }
+  /* Yatay/kısa ekranda 5 buton sığmaz: iki sütuna geç ve kaydırmaya izin ver */
+  @media (max-height: 560px) {
+    body {
+      overflow-y: auto;
+      justify-content: flex-start;
+      padding-top: 2vh;
+      gap: 2vh;
+    }
+    h1 { font-size: clamp(20px, 4.5vw, 32px); }
+    .menu {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2vh 2vw;
+      max-width: 640px;
+      padding-bottom: 3vh;
+    }
+    a.game-btn { padding: 1.6vh 4vw; gap: 3vw; }
+    a.game-btn .icon { font-size: clamp(34px, 9vw, 56px); }
+    a.game-btn .label { font-size: clamp(17px, 4.5vw, 28px); }
+  }
 </style>
 </head>
 <body>

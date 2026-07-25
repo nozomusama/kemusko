@@ -304,6 +304,13 @@
   function soundTrophy() { [523, 659, 784, 1047, 784, 1047, 1319].forEach(function (f, i) { beep(f, 0.24, "sine", i * 0.13); }); }
   document.addEventListener("pointerdown", ensureAudio);
 
+  // Arka planda geçen süre zorluk ölçümüne sayılmasın
+  var hiddenAt = 0;
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) hiddenAt = performance.now();
+    else if (hiddenAt) { levelStart += performance.now() - hiddenAt; hiddenAt = 0; }
+  });
+
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
     W = window.innerWidth;
@@ -500,7 +507,11 @@
       var t = Math.min(s.p / (board.cell * 2), 1);
       var speed = (4 + 8 * t) * board.cell;
       s.p += speed * dt;
-      if (s.p >= s.lastArc) {
+      // Kuyruk görünür alandan çıktığı AN yılan gitti sayılır; uzatma yolunun
+      // sonunu beklemek pop sesini ve kutlamayı yarım saniyeden fazla geciktirirdi
+      var tail = pointAt(s, s.p);
+      var m = board.cell * 1.2;
+      if (s.p >= s.lastArc || tail.x < -m || tail.x > W + m || tail.y < -m || tail.y > H + m) {
         s.state = "gone";
         anyGoneNow = true;
         soundPop(s.popIdx);

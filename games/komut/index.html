@@ -51,6 +51,7 @@
   #strip {
     flex: 0 0 auto;
     display: flex;
+    flex-wrap: wrap;               /* uzun programlar ikinci satıra taşar, kaybolmaz */
     align-items: center;
     justify-content: center;
     gap: 1.4vw;
@@ -427,9 +428,20 @@
   function soundTrophy() { [523, 659, 784, 1047, 784, 1047, 1319].forEach(function (f, i) { beep(f, 0.24, "sine", i * 0.13); }); }
   document.addEventListener("pointerdown", ensureAudio);
 
+  // Arka planda geçen süre zorluk ölçümüne sayılmasın
+  var hiddenAt = 0;
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) hiddenAt = performance.now();
+    else if (hiddenAt) { levelStart += performance.now() - hiddenAt; hiddenAt = 0; }
+  });
+
   // ---- Yerleşim ----
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
+    // Önceki resize'ın yazdığı sabit piksel boyutunu temizle; yoksa cihaz
+    // döndürülünce getBoundingClientRect eski genişliği ölçer ve kilitlenir
+    canvas.style.width = "";
+    canvas.style.height = "";
     var r = canvas.getBoundingClientRect();
     W = Math.max(1, Math.round(r.width));
     H = Math.max(1, Math.round(r.height));
@@ -475,6 +487,7 @@
             ensureAudio();
             program.splice(idx, 1);
             soundDel();
+            clearHint();
             buildStrip();
             e.stopPropagation();
           });
@@ -509,7 +522,7 @@
       b.addEventListener("pointerdown", function (e) {
         ensureAudio();
         if (state !== "editing") return;
-        if (program.length >= maxSlots) { flashFull(); return; }
+        if (program.length >= maxSlots) { clearHint(); flashFull(); return; }
         program.push(d);
         soundArrow(d);
         clearHint();
@@ -530,6 +543,7 @@
       useLoop = !useLoop;
       loopBtn.classList.toggle("on", useLoop);
       beep(useLoop ? 700 : 500, 0.12, "triangle");
+      clearHint();
       buildStrip();
       e.stopPropagation();
     });
@@ -583,8 +597,8 @@
   function loadLevel() {
     var p = tier();
     lv = generateLevel(p) || generateLevel(TIERS[0]);
+    // Döngü kademesinde de TAM çözüm sığmalı: 🔁 bir kısayoldur, zorunluluk değil
     maxSlots = Math.max(4, lv.solution.length + 2);
-    if (p.loop) maxSlots = Math.max(4, Math.ceil(lv.solution.length / 2) + 2);
     program = [];
     useLoop = false;
     hasKey = false; hasStar = false;
@@ -595,7 +609,8 @@
     resetSnake();
     layout();
     levelBadge.textContent = "Bölüm " + progress.num;
-    goalBadge.textContent = lv.key ? "🔑🥚" : (lv.star ? "⭐🥚" : "🥚");
+    // Rozet TÜM gereksinimleri göstersin: 🔑 hem ⭐ varsa ikisi de görünmeli
+    goalBadge.textContent = (lv.key ? "🔑" : "") + (lv.star ? "⭐" : "") + "🥚";
     loopBtn.classList.toggle("show", !!p.loop);
     loopBtn.classList.remove("on");
     clearHint();
@@ -780,6 +795,7 @@
     if (!lv.onizleme || state !== "editing" || !program.length) return;
     var prog = fullProgram();
     var x = lv.start[0], y = lv.start[1];
+    var pvKey = false, pvStar = false;
     ctx.save();
     ctx.strokeStyle = "rgba(38,166,154,.75)";
     ctx.lineWidth = Math.max(3, board.cell * 0.08);
@@ -799,7 +815,17 @@
                   board.cell * 0.4, 0.85);
         return;
       }
+      // Önizleme oyunla aynı kuralı bilsin: eksik eşyayla kapıya varış kilitlidir
+      if (nx === lv.goal[0] && ny === lv.goal[1] &&
+          ((lv.key && !pvKey) || (lv.star && !pvStar))) {
+        ctx.stroke();
+        ctx.restore();
+        drawEmoji("🔒", cx(nx), cy(ny) - board.cell * 0.34, board.cell * 0.38, 0.9);
+        return;
+      }
       x = nx; y = ny;
+      if (lv.key && x === lv.key[0] && y === lv.key[1]) pvKey = true;
+      if (lv.star && x === lv.star[0] && y === lv.star[1]) pvStar = true;
       ctx.lineTo(cx(x), cy(y));
     }
     ctx.stroke();

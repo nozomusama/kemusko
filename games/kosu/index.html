@@ -92,7 +92,17 @@
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     GROUND = H * 0.78;
   }
-  window.addEventListener("resize", resize);
+  // Mobilde adres çubuğunun gizlenmesi de resize tetikler: oyun alanı orta
+  // oyunda SİLİNMEMELİ. Yalnız genişlik değişirse (döndürme) baştan kur;
+  // sadece yükseklik değiştiyse varlıkları yeni zemine hizala.
+  window.addEventListener("resize", function () {
+    var oldW = W, oldGround = GROUND;
+    resize();
+    if (W !== oldW) { reset(); return; }
+    var dg = GROUND - oldGround;
+    if (!bunny.jumping) bunny.y = GROUND; else bunny.y += dg;
+    starsArr.forEach(function (st) { st.y += dg; });
+  });
   resize();
 
   // --- Sesler ---
@@ -415,8 +425,6 @@
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(function (t) { lastTime = t; requestAnimationFrame(loop); });
-
-  window.addEventListener("resize", reset);
 })();
 </script>
 </body>

@@ -33,6 +33,9 @@
       var st = load(stateKey, null);
       if (!st || typeof st.level !== "number") st = { level: opts.start || 0, streak: 0 };
       st.level = Math.max(opts.min, Math.min(opts.max, st.level));
+      // Başlangıç kademesi hemen kalıcı olsun: ilk tur bitmeden çıkılırsa
+      // (ör. eski kayıttan taşınan kademe) kaybolmasın
+      save(stateKey, st);
 
       return {
         get level() { return st.level; },

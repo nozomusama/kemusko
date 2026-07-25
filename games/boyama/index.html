@@ -584,15 +584,24 @@
     src.stop(t + 0.3);
   }
   document.addEventListener("pointerdown", ensureAudio);
+  var hiddenAt = 0;
   document.addEventListener("visibilitychange", function () {
-    if (document.hidden && audioCtx) audioCtx.suspend();
+    if (document.hidden) {
+      if (audioCtx) audioCtx.suspend();
+      hiddenAt = performance.now();
+    } else if (hiddenAt) {
+      // Arka planda geçen süre zorluk ölçümüne sayılmasın
+      levelStart += performance.now() - hiddenAt;
+      hiddenAt = 0;
+    }
   });
 
   // ---- Yerleşim ----
   function resize() {
-    var oldIn = null, oldOut = null;
-    if (W > 0) {
-      // Boya kaybolmasın: eski katmanları sakla, yeni boyuta ölçekleyerek geri bas
+    var oldIn = null, oldOut = null, oldFig = null, oldPD = PDPR;
+    if (W > 0 && fig) {
+      // Boya kaybolmasın: eski katmanları ve figürün ESKİ yerleşimini sakla
+      oldFig = { x: figX, y: figY, s: figS };
       oldIn = document.createElement("canvas");
       oldIn.width = paintIn.width; oldIn.height = paintIn.height;
       oldIn.getContext("2d").drawImage(paintIn, 0, 0);
@@ -618,17 +627,25 @@
     pinCtx.setTransform(PDPR, 0, 0, PDPR, 0, 0);
     poutCtx.setTransform(PDPR, 0, 0, PDPR, 0, 0);
 
-    if (oldIn) {
-      pinCtx.save(); pinCtx.setTransform(1, 0, 0, 1, 0, 0);
-      pinCtx.drawImage(oldIn, 0, 0, paintIn.width, paintIn.height);
-      pinCtx.restore();
-      poutCtx.save(); poutCtx.setTransform(1, 0, 0, 1, 0, 0);
-      poutCtx.drawImage(oldOut, 0, 0, paintOut.width, paintOut.height);
-      poutCtx.restore();
+    layoutFigure();
+
+    if (oldIn && oldFig) {
+      // Boyayı figüre ÇAPALI taşı: eski figür kutusu yeni kutuya eşlenir.
+      // Düz gerdirme boya ile figürü ayrı ölçeklediğinden boya kayar,
+      // doluluk/taşma ölçümü bozulur ve ✅ haksız yere kaybolurdu.
+      var k = figS / oldFig.s;
+      var dx = figX - oldFig.x * k;
+      var dy = figY - oldFig.y * k;
+      var ow = oldIn.width / oldPD, oh = oldIn.height / oldPD;   // css boyutları
+      pinCtx.drawImage(oldIn, dx, dy, ow * k, oh * k);
+      poutCtx.drawImage(oldOut, dx, dy, ow * k, oh * k);
     }
 
-    layoutFigure();
-    if (fig) buildMasks();
+    if (fig) {
+      buildMasks();
+      dirty = true;
+      lastMeas = 0;   // ölçüm ve ✅ durumu hemen tazelensin
+    }
   }
 
   function layoutFigure() {
@@ -738,7 +755,9 @@
     var isReady = coverage >= t.cover && (t.show !== "stick" || overflow <= t.maxOver);
     if (isReady && !ready) {
       ready = true;
-      readyAt = performance.now();     // çözüm süresi: serbest boyama süresi sayılmaz
+      // İLK hazır olma anı çözüm süresidir; sonra taşırıp süngerle temizlemesi
+      // (stick kademesi) süreye eklenirse kademe haksız düşerdi
+      if (!readyAt) readyAt = performance.now();
       soundReady();
     } else if (!isReady && ready) {
       ready = false;

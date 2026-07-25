@@ -58,6 +58,8 @@
     gap: 3vw;
     padding: 2vh 5vw 4vh;
     align-content: center;
+    justify-content: center;
+    min-height: 0;
   }
   .card {
     aspect-ratio: 3 / 4;
@@ -203,6 +205,13 @@
   function soundWin()   { [523, 659, 784, 1047].forEach(function (f, i) { beep(f, 0.25, "sine", i * 0.15); }); }
   document.addEventListener("pointerdown", ensureAudio);
 
+  // Arka planda geçen süre zorluk ölçümüne sayılmasın
+  var hiddenAt = 0;
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) hiddenAt = performance.now();
+    else if (hiddenAt) { roundStart += performance.now() - hiddenAt; hiddenAt = 0; }
+  });
+
   function shuffle(arr) {
     for (var i = arr.length - 1; i > 0; i--) {
       var j = Math.floor(Math.random() * (i + 1));
@@ -211,11 +220,32 @@
     return arr;
   }
 
-  function gridColumns(cardCount) {
-    if (cardCount <= 4) return 2;
-    if (cardCount <= 9) return 3;
-    return 4;
+  // Kart boyunu hem ENE hem BOYA sığacak şekilde seç: yatay/kısa ekranda
+  // alt sıra viewport dışında kalırsa dokunulamaz ve tur bitirilemezdi.
+  function fitGrid(cardCount) {
+    var cs = getComputedStyle(board);
+    var availW = board.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    var availH = board.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    var gap = parseFloat(cs.rowGap) || 10;
+    var best = { cols: 2, w: 24 };
+    for (var cols = 2; cols <= cardCount; cols++) {
+      var rows = Math.ceil(cardCount / cols);
+      var byW = (availW - gap * (cols - 1)) / cols;
+      var byH = ((availH - gap * (rows - 1)) / rows) * 3 / 4;   // kart oranı 3:4
+      var size = Math.min(byW, byH, 150);
+      if (size > best.w) best = { cols: cols, w: size };
+    }
+    return best;
   }
+
+  function applyGrid() {
+    var count = board.children.length;
+    if (!count) return;
+    var g = fitGrid(count);
+    board.style.gridTemplateColumns = "repeat(" + g.cols + ", " + Math.floor(g.w) + "px)";
+  }
+
+  window.addEventListener("resize", applyGrid);
 
   function newRound() {
     totalPairs = PAIRS_BY_TIER[adapt.level];
@@ -228,7 +258,6 @@
 
     var picks = shuffle(EMOJIS.slice()).slice(0, totalPairs);
     var deck = shuffle(picks.concat(picks));
-    board.style.gridTemplateColumns = "repeat(" + gridColumns(deck.length) + ", 1fr)";
 
     deck.forEach(function (emoji) {
       var card = document.createElement("div");
@@ -242,9 +271,11 @@
       card.addEventListener("pointerdown", function () { onCardTap(card); });
       board.appendChild(card);
     });
+    applyGrid();
   }
 
   function onCardTap(card) {
+    ensureAudio();   // kart dinleyicisi document'ten önce çalışır; ilk ses kaybolmasın
     if (locked || card.classList.contains("flipped")) return;
     soundFlip();
     card.classList.add("flipped");
