@@ -8,6 +8,7 @@ Kurulum gerekmez — `index.html` dosyasını herhangi bir tarayıcıda açmak y
 | Oyun | Tarz | Nasıl oynanır |
 |---|---|---|
 | 🐍 **Yılan Kurtarma** | Bulmaca / mantık | Yılana dokun, baş yönünde kayarak labirentten çıksın. Yolu kapatan yılanları önce kurtar! Bölümler cihazda, Kemal'in seviyesine göre üretilir. |
+| 🖍️ **Boyama** | Yaratıcılık / özen | Renkli kalem seç, figürün içini parmakla boya. Başta boya dışarı taşmaz; ilerledikçe taşmaya başlar ve 🧽 sünger ile temizlemen gerekir. |
 | 🐣 **Eşleştirme** | Bulmaca / hafıza | Kartlara dokun, aynı hayvanları eşleştir. Her turda kart sayısı biraz artar. |
 | 🐰 **Zıp Zıp Koşu** | Koşu / zıplama | Ekrana dokun, tavşan zıplasın! Yıldızları topla, engellerin üstünden atla. |
 
@@ -32,7 +33,12 @@ Tüm oyunlar ortak `games/shared/adapt.js` modülünü kullanır:
   çıkmaz**; ileriki "gelişim raporu" katmanı bu günlüğü okuyacak
 - Oyun başına ölçülenler: Yılan → bölüm süresi + yanlış dokunma sayısı;
   Eşleştirme → tur süresi + yanlış çift sayısı; Koşu → 25 sn'lik pencerede
-  çarpma ve yıldız sayısı
+  çarpma ve yıldız sayısı; Boyama → süre + doluluk + taşma oranı + sünger sayısı
+
+**Boyama** kademeleri taşma davranışını belirler: 0-1'de boya figürden dışarı
+**taşamaz**, 2-3'te taşar ama kendiliğinden solar, 4-5'te kalıcı kalır ve bölümü
+bitirmek için 🧽 süngerle temizlenmesi gerekir. Taşma kademe 0'da bile gizlice
+ölçülür — çocuk sınır içinde kalmayı öğrenmeden üst kademeye terfi etmez.
 
 **Yılan Kurtarma** ayrıca bölümleri kademeye göre **cihazda üretir**: ilk kez
 ulaşılan kademede el yapımı bölüm gösterilir, sonrasında oyun içi üretici
@@ -60,10 +66,15 @@ telefonun tarayıcısından oynanabilir.
 
 ```
 index.html                    → Ana menü
+games/shared/adapt.js         → Ortak uyarlanabilir zorluk + telemetri modülü
 games/yilan/index.html        → Yılan Kurtarma oyunu
+games/boyama/index.html       → Boyama oyunu
 games/eslestirme/index.html   → Eşleştirme oyunu
 games/kosu/index.html         → Zıp Zıp Koşu oyunu
 tools/verify-levels.mjs       → Yılan bölümlerinin çözülebilirlik kanıtı
+tools/test-yilan-generator.mjs→ Yılan oyun içi üreticisinin sınaması
+tools/verify-boyama.mjs       → Boyama kademe/figür verisi denetimi
+tools/smoke-boyama.mjs        → Boyama uçtan uca tarayıcı testi (Playwright)
 ```
 
 ### Yılan Kurtarma bölümleri hakkında
