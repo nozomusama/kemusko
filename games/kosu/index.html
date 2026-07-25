@@ -85,6 +85,10 @@
     H = window.innerHeight;
     canvas.width = W * DPR;
     canvas.height = H * DPR;
+    // CSS boyutunu piksel olarak sabitle: 100vh mobilde adres çubuğu gizliyken
+    // ölçülen yüksekliği verir ve zemin ekranın dışında kalabilirdi
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     GROUND = H * 0.78;
   }

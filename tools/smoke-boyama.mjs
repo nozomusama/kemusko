@@ -64,8 +64,29 @@ async function scribble(page, { outside = false, rows = 40 } = {}) {
   }
 }
 
+// Dokunma noktası ile boyanan yer aynı mı? (canvas gerilme kalibrasyonu)
+async function checkCalibration(page) {
+  const probe = await page.evaluate(async () => {
+    var d = window.__boyamaDebug;
+    var bb = d.bbox();
+    // Figürün tam ortasına tek damla: dokunma → boya aynı noktada mı?
+    var cx = Math.round(bb.x + bb.w / 2), cy = Math.round(bb.y + bb.h / 2);
+    var cv = document.getElementById("game");
+    var r = cv.getBoundingClientRect();
+    return { cx: cx, cy: cy, rectW: r.width, rectH: r.height,
+             innerW: window.innerWidth, innerH: window.innerHeight,
+             left: r.left, top: r.top };
+  });
+  if (Math.abs(probe.rectW - probe.innerW) > 1 || Math.abs(probe.rectH - probe.innerH) > 1) {
+    err(`canvas CSS boyutu görünür alandan farklı (${probe.rectW}x${probe.rectH} vs ${probe.innerW}x${probe.innerH}) — dokunma kayar`);
+  } else {
+    ok("canvas kalibrasyonu doğru (CSS boyutu = görünür alan)");
+  }
+}
+
 await waitServer();
-const browser = await chromium.launch();
+// Ses testi için otomatik oynatma kilidini aç (WebAudio headless'ta da çalışır)
+const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
 
 try {
   // --- 1) Figür geometri denetimi: tek bağlı bölge + fırçayla doldurulabilirlik
@@ -135,15 +156,55 @@ try {
   if (!fail) ok(`12 figür geometrisi sağlam (hepsi tek parça, fırçayla doldurulabilir)`);
   await page.screenshot({ path: shotDir + "/boyama-1-baslangic.png" });
 
-  // --- 2) Kademe 0: boya dışarı TAŞAMAZ + bölüm bitip ilerliyor
+  await checkCalibration(page);
+
+  // --- Ses: parmak kalkınca sürtme sesi TAMAMEN susmalı ("bozuk plak" regresyonu)
+  {
+    const bb = await page.evaluate(() => window.__boyamaDebug.bbox());
+    const y = bb.y + bb.h / 2;
+    await page.mouse.move(bb.x + 10, y);
+    await page.mouse.down();
+    const duringP = page.evaluate(() => window.__boyamaDebug.audioLevel(250));
+    for (let i = 0; i < 12; i++) {          // ölçüm boyunca sürtmeye devam
+      await page.mouse.move(bb.x + 10 + (i % 2 ? 40 : 10), y, { steps: 3 });
+      await new Promise(r => setTimeout(r, 25));
+    }
+    const during = await duringP;
+    await page.mouse.up();
+    await new Promise(r => setTimeout(r, 800));
+    const after = await page.evaluate(() => window.__boyamaDebug.audioLevel(250));
+    if (during < 0) ok("ses motoru headless'ta yok, ses testi atlandı");
+    else if (during <= 0.0005) err(`sürtme sırasında ses çıkmıyor (seviye ${during.toExponential(1)})`);
+    else if (after > 0.0005) err(`parmak kalkınca ses susmuyor! (sürerken ${during.toFixed(4)} → sonra ${after.toFixed(4)})`);
+    else ok(`sürtme sesi çalışıyor (${during.toFixed(4)}) ve parmak kalkınca susuyor (${after.toExponential(1)})`);
+  }
+
+  // --- 2) Kademe 0: boya dışarı TAŞAMAZ; dolunca "bitti" butonu çıkar ama
+  //        bölüm KENDİLİĞİNDEN geçmez — çocuk boyamaya devam edebilir
   await scribble(page);
   const m0 = await page.evaluate(() => window.__boyamaDebug.measureNow());
   ok(`kademe 0: doluluk %${Math.round(m0.coverage * 100)}`);
   await page.screenshot({ path: shotDir + "/boyama-2-boyanmis.png" });
+
+  await page.waitForFunction(() => window.__boyamaDebug.ready(), null, { timeout: 10000 })
+    .then(() => ok("yeterince dolunca 'bitti' butonu belirdi"))
+    .catch(() => err("'bitti' butonu belirmedi"));
+  if (await page.evaluate(() => document.getElementById("celebrate").classList.contains("show"))) {
+    err("bölüm kendiliğinden geçti (çocuğun kararı olmalıydı)");
+  } else {
+    ok("bölüm kendiliğinden geçmiyor, karar çocuğun");
+  }
+  // Devam boyayabiliyor mu?
+  await scribble(page, { rows: 3 });
+  if (await page.evaluate(() => window.__boyamaDebug.state()) === "painting") {
+    ok("buton çıktıktan sonra boyamaya devam edilebiliyor");
+  } else err("buton çıkınca boyama kilitlendi");
+  await page.screenshot({ path: shotDir + "/boyama-3-bitti-butonu.png" });
+
+  await page.locator("#next").click({ force: true });
   await page.waitForFunction(() => document.getElementById("celebrate").classList.contains("show"),
-    null, { timeout: 15000 }).then(() => ok("bölüm bitti, kutlama açıldı"))
-    .catch(() => err("kutlama açılmadı"));
-  await page.screenshot({ path: shotDir + "/boyama-3-kutlama.png" });
+    null, { timeout: 5000 }).then(() => ok("butona basınca kutlama açıldı"))
+    .catch(() => err("butona basınca kutlama açılmadı"));
   await page.waitForFunction(() => document.getElementById("level-badge").textContent === "Bölüm 2",
     null, { timeout: 8000 }).then(() => ok("Bölüm 2'ye geçildi"))
     .catch(() => err("bölüm ilerlemedi"));
@@ -177,9 +238,13 @@ try {
   const after = await p4.evaluate(() => window.__boyamaDebug.measureNow());
   if (after.overflow === 0) ok("sünger taşan boyayı temizledi");
   else err(`sünger sonrası taşma kaldı: ${after.overflow}`);
+  await p4.waitForFunction(() => window.__boyamaDebug.ready(), null, { timeout: 8000 })
+    .then(() => ok("temizlik sonrası 'bitti' butonu açıldı"))
+    .catch(() => err("temizlik sonrası buton açılmadı"));
+  await p4.locator("#next").click({ force: true });
   await p4.waitForFunction(() => document.getElementById("celebrate").classList.contains("show"),
-    null, { timeout: 8000 }).then(() => ok("temizlik sonrası bölüm bitti"))
-    .catch(() => err("temizlik sonrası bölüm bitmedi"));
+    null, { timeout: 5000 }).then(() => ok("kademe 4 bölümü tamamlandı"))
+    .catch(() => err("kademe 4 bölümü tamamlanmadı"));
   await p4.screenshot({ path: shotDir + "/boyama-5-sunger-sonrasi.png" });
   await p4.close();
 } finally {

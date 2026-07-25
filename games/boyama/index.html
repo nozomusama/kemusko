@@ -95,6 +95,29 @@
     0%, 100% { transform: rotate(-9deg) scale(1.12); }
     50% { transform: rotate(9deg) scale(1.12); }
   }
+  /* Boyama yeterince dolunca çıkar; basmak Kemal'in kararı, isterse boyamaya devam eder */
+  #next {
+    position: fixed;
+    left: 4vw;
+    bottom: calc(11vh + env(safe-area-inset-bottom, 0px));
+    width: clamp(60px, 16vw, 86px);
+    height: clamp(60px, 16vw, 86px);
+    border-radius: 50%;
+    background: #4caf50;
+    border: 5px solid #fff;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(30px, 8vw, 46px);
+    box-shadow: 0 5px 0 rgba(0,0,0,.2);
+    z-index: 6;
+  }
+  #next.show { display: flex; animation: heartbeat 1.1s ease-in-out infinite; }
+  #next:active { transform: translateY(3px) scale(.94); }
+  @keyframes heartbeat {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.14); }
+  }
   #celebrate {
     position: fixed;
     inset: 0;
@@ -457,6 +480,7 @@
   var lastMeas = 0, lastFade = 0, lastUps = 0;
   var coverage = 0, overflow = 0, peakOverflow = 0;
   var spongeCount = 0, levelStart = 0;
+  var ready = false, readyAt = 0;
   var popStart = -1e9;
   var interiorBits = null, interiorCount = 0;
   var bbox = { x: 0, y: 0, w: 1, h: 1 };
@@ -491,25 +515,39 @@
     scratchFilter.type = "bandpass";
     scratchFilter.frequency.value = 2200;
     scratchFilter.Q.value = 1;
-    scratchGain = audioCtx.createGain();
-    scratchGain.gain.value = 0;
-    // Mum ucunun kağıtta takırdaması: yavaş LFO
+    // Mum ucunun takırtısı: LFO AYRI bir çarpan katta durur.
+    // (Doğrudan ana gain'e bağlanırsa parmak kalkınca ses kesilmez, döngü takılır.)
+    var modGain = audioCtx.createGain();
+    modGain.gain.value = 0.65;
     var lfo = audioCtx.createOscillator();
     lfo.frequency.value = 12;
-    var lfoGain = audioCtx.createGain();
-    lfoGain.gain.value = 0.35;
-    lfo.connect(lfoGain).connect(scratchGain.gain);
+    var lfoDepth = audioCtx.createGain();
+    lfoDepth.gain.value = 0.35;
+    lfo.connect(lfoDepth).connect(modGain.gain);
     lfo.start();
-    src.connect(scratchFilter).connect(scratchGain).connect(audioCtx.destination);
+    // Ana kapı: 0 olduğunda ses tamamen susar
+    scratchGain = audioCtx.createGain();
+    scratchGain.gain.value = 0;
+    src.connect(scratchFilter).connect(modGain).connect(scratchGain).connect(audioCtx.destination);
     src.start();
+  }
+  function holdGain(g, t) {
+    if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(t);
+    else g.cancelScheduledValues(t);
   }
   function scratch(level) {
     if (!scratchGain) return;
-    scratchGain.gain.setTargetAtTime(Math.min(0.12, level), audioCtx.currentTime, 0.05);
-    scratchFilter.frequency.setTargetAtTime(1800 + level * 9000, audioCtx.currentTime, 0.08);
+    var t = audioCtx.currentTime;
+    holdGain(scratchGain.gain, t);
+    scratchGain.gain.setTargetAtTime(Math.min(0.12, level), t, 0.05);
+    scratchFilter.frequency.setTargetAtTime(1800 + level * 9000, t, 0.08);
   }
   function scratchOff() {
-    if (scratchGain) scratchGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.08);
+    if (!scratchGain) return;
+    var t = audioCtx.currentTime;
+    holdGain(scratchGain.gain, t);
+    scratchGain.gain.setTargetAtTime(0, t, 0.05);
+    scratchGain.gain.setValueAtTime(0, t + 0.3);   // üstel iniş sıfıra ulaşmaz: sert sustur
   }
   function beep(freq, dur, type, delay, vol) {
     if (!audioCtx) return;
@@ -526,6 +564,7 @@
   }
   function soundPop(n)    { beep(620 + n * 70, 0.14, "triangle"); }
   function soundUps()     { beep(523, 0.14, "sine", 0, 0.15); beep(392, 0.18, "sine", 0.13, 0.15); }
+  function soundReady()   { beep(784, 0.16, "sine", 0, 0.16); beep(1047, 0.22, "sine", 0.14, 0.16); }
   function soundWin()     { [523, 659, 784, 1047].forEach(function (f, i) { beep(f, 0.25, "sine", i * 0.14); }); }
   function soundTrophy()  { [523, 659, 784, 1047, 784, 1047, 1319].forEach(function (f, i) { beep(f, 0.24, "sine", i * 0.13); }); }
   function soundSponge() {
@@ -568,6 +607,10 @@
     H = window.innerHeight;
     canvas.width = W * DPR;
     canvas.height = H * DPR;
+    // CSS boyutunu piksel olarak sabitle: 100vh mobilde adres çubuğu gizliyken
+    // ölçülen yüksekliği verir ve canvas gerilerek dokunma noktası kayardı
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
     paintIn.width = Math.round(W * PDPR); paintIn.height = Math.round(H * PDPR);
@@ -684,13 +727,23 @@
     }
 
     updateSponge();
-    checkDone();
+    updateReady();
   }
 
-  function checkDone() {
+  // Bölüm kendiliğinden bitmez: yeterince dolunca "bitti" butonu belirir,
+  // basmak çocuğun kararıdır — isterse boyamaya devam eder.
+  function updateReady() {
     if (state !== "painting") return;
     var t = tier();
-    if (coverage >= t.cover && (t.show !== "stick" || overflow <= t.maxOver)) levelDone();
+    var isReady = coverage >= t.cover && (t.show !== "stick" || overflow <= t.maxOver);
+    if (isReady && !ready) {
+      ready = true;
+      readyAt = performance.now();     // çözüm süresi: serbest boyama süresi sayılmaz
+      soundReady();
+    } else if (!isReady && ready) {
+      ready = false;
+    }
+    nextBtn.classList.toggle("show", ready);
   }
 
   function updateSponge() {
@@ -786,7 +839,14 @@
     return !hitCtx.isPointInPath(x, y);
   }
 
-  function pointerPos(e) { return [e.clientX, e.clientY]; }
+  // Dokunma noktasını canvas'ın gerçek yerleşimine göre çevir (kalibrasyon)
+  function pointerPos(e) {
+    var r = canvas.getBoundingClientRect();
+    return [
+      (e.clientX - r.left) * (W / (r.width || W)),
+      (e.clientY - r.top) * (H / (r.height || H))
+    ];
+  }
 
   canvas.addEventListener("pointerdown", function (e) {
     ensureAudio();
@@ -846,6 +906,15 @@
   spongeBtn.id = "sponge";
   spongeBtn.textContent = "🧽";
 
+  var nextBtn = document.createElement("div");
+  nextBtn.id = "next";
+  nextBtn.textContent = "✅";
+  nextBtn.addEventListener("pointerdown", function (e) {
+    ensureAudio();
+    if (ready && state === "painting") levelDone();
+    e.stopPropagation();
+  });
+
   function buildPalette() {
     paletteEl.innerHTML = "";
     COLORS.forEach(function (col, i) {
@@ -865,6 +934,7 @@
       paletteEl.appendChild(b);
     });
     if (!spongeBtn.parentNode) document.body.appendChild(spongeBtn);
+    if (!nextBtn.parentNode) document.body.appendChild(nextBtn);
     updateSponge();
   }
 
@@ -878,7 +948,7 @@
     spongeCount++;
     overflow = 0;
     updateSponge();
-    checkDone();
+    updateReady();
     e.stopPropagation();
   });
 
@@ -903,6 +973,8 @@
     buildMasks();
     coverage = 0; overflow = 0; peakOverflow = 0; spongeCount = 0;
     levelStart = performance.now();
+    ready = false; readyAt = 0;
+    nextBtn.classList.remove("show");
     state = "painting";
     strokes = {};
     levelBadge.textContent = "Bölüm " + progress.num;
@@ -914,8 +986,13 @@
     state = "celebrating";
     scratchOff();
     strokes = {};
+    nextBtn.classList.remove("show");
+    spongeBtn.classList.remove("hint");
     popStart = performance.now();
-    var sure = (performance.now() - levelStart) / 1000;
+    // Zorluk ölçüsü: figürü doldurmak ne kadar sürdü — sonrasındaki
+    // serbest boyama süresi "zorlandı" sayılmamalı
+    var sure = ((readyAt || performance.now()) - levelStart) / 1000;
+    var ekstra = readyAt ? Math.round((performance.now() - readyAt) / 1000) : 0;
     var t = tier();
     var par = 45 + adapt.level * 10;
     adapt.record({
@@ -925,7 +1002,7 @@
       bolum: progress.num, figur: fig.id, sure: Math.round(sure),
       doluluk: Math.round(coverage * 100) / 100,
       tasma: Math.round(peakOverflow * 100) / 100,
-      sunger: spongeCount
+      sunger: spongeCount, ekstra: ekstra
     });
 
     var isTrophy = progress.num % 10 === 0;
@@ -1050,9 +1127,27 @@
     coverage: function () { return coverage; },
     overflow: function () { return overflow; },
     state: function () { return state; },
+    ready: function () { return ready; },
     tier: function () { return adapt.level; },
     figures: function () { return FIGURES; },
-    measureNow: function () { measure(); return { coverage: coverage, overflow: overflow }; }
+    measureNow: function () { measure(); return { coverage: coverage, overflow: overflow }; },
+    // Sürtme sesinin gerçek çıkış seviyesi (parmak kalkınca susmalı)
+    audioLevel: function (ms) {
+      if (!audioCtx || !scratchGain) return Promise.resolve(-1);
+      var an = audioCtx.createAnalyser();
+      an.fftSize = 2048;
+      scratchGain.connect(an);
+      return new Promise(function (res) {
+        setTimeout(function () {
+          var buf = new Float32Array(an.fftSize);
+          an.getFloatTimeDomainData(buf);
+          var sum = 0;
+          for (var i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+          scratchGain.disconnect(an);
+          res(Math.sqrt(sum / buf.length));
+        }, ms || 250);
+      });
+    }
   };
 
   buildStamps();

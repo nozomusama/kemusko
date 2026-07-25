@@ -310,6 +310,10 @@
     H = window.innerHeight;
     canvas.width = W * DPR;
     canvas.height = H * DPR;
+    // CSS boyutunu piksel olarak sabitle: 100vh mobilde adres çubuğu gizliyken
+    // ölçülen yüksekliği verir ve canvas gerilerek dokunma noktası kayardı
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     headerH = Math.min(Math.max(52, W * 0.14), 76) + H * 0.04;
     layoutBoard();
@@ -463,7 +467,10 @@
   }
 
   canvas.addEventListener("pointerdown", function (e) {
-    onTap(e.clientX, e.clientY);
+    // Dokunma noktasını canvas'ın gerçek yerleşimine göre çevir
+    var r = canvas.getBoundingClientRect();
+    onTap((e.clientX - r.left) * (W / (r.width || W)),
+          (e.clientY - r.top) * (H / (r.height || H)));
   });
 
   function update(dt) {
