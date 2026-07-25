@@ -35,7 +35,9 @@ async function waitServer() {
 }
 
 await waitServer();
-const browser = await chromium.launch();
+let browser;
+try { browser = await chromium.launch(); }
+catch (e) { browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" }); }
 
 try {
   const page = await browser.newPage({

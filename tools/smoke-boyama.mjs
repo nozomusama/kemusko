@@ -86,7 +86,10 @@ async function checkCalibration(page) {
 
 await waitServer();
 // Ses testi için otomatik oynatma kilidini aç (WebAudio headless'ta da çalışır)
-const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
+const launchOpts = { args: ["--autoplay-policy=no-user-gesture-required"] };
+let browser;
+try { browser = await chromium.launch(launchOpts); }
+catch (e) { browser = await chromium.launch({ ...launchOpts, executablePath: "/opt/pw-browsers/chromium" }); }
 
 try {
   // --- 1) Figür geometri denetimi: tek bağlı bölge + fırçayla doldurulabilirlik

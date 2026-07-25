@@ -26,7 +26,9 @@ for (let i = 0; i < 50; i++) {
   try { await fetch(`http://localhost:${PORT}/`); break; } catch (e) { await sleep(100); }
 }
 
-const browser = await chromium.launch();
+let browser;
+try { browser = await chromium.launch(); }
+catch (e) { browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" }); }
 
 async function checkViewport(name, vw, vh, tierLevel) {
   const page = await browser.newPage({

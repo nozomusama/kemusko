@@ -105,6 +105,24 @@
   <div class="cloud c1">☁️</div>
   <div class="cloud c2">☁️</div>
   <h1>🎈 Kemal'in Oyunları 🎈</h1>
+  <script>
+  // Sıfırlama sayacı (games/shared/adapt.js ile aynı): menüden girildiğinde de
+  // çalışsın diye burada da var. Sayı artırılıp yayınlanınca kayıtlar bir kez silinir.
+  (function () {
+    var RESET_EPOCH = /*RESET_EPOCH*/1/*RESET_EPOCH_END*/;
+    try {
+      if (+(localStorage.getItem("kemal-reset") || 0) < RESET_EPOCH) {
+        var doomed = [];
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (/^kemal-(adapt|telemetry)-/.test(k) || /-progress2?$/.test(k)) doomed.push(k);
+        }
+        doomed.forEach(function (k) { localStorage.removeItem(k); });
+        localStorage.setItem("kemal-reset", String(RESET_EPOCH));
+      }
+    } catch (e) {}
+  })();
+  </script>
   <nav class="menu">
     <a class="game-btn snake" href="games/yilan/index.html">
       <span class="icon">🐍</span>

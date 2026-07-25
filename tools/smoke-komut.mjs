@@ -58,7 +58,9 @@ async function press(page, dir) {
 const play = (page) => page.locator("#play").click();
 
 await waitServer();
-const browser = await chromium.launch();
+let browser;
+try { browser = await chromium.launch(); }
+catch (e) { browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" }); }
 
 try {
   // --- 1) Doğru çözüm: bölüm tamamlanmalı

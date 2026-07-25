@@ -16,6 +16,21 @@
 (function () {
   "use strict";
 
+  // Sıfırlama sayacı: bu sayı artırılıp yayınlanınca her cihazda tüm oyun
+  // kayıtları (kademe, ilerleme, telemetri) BİR KEZ temizlenir.
+  var RESET_EPOCH = /*RESET_EPOCH*/1/*RESET_EPOCH_END*/;
+  try {
+    if (+(localStorage.getItem("kemal-reset") || 0) < RESET_EPOCH) {
+      var doomed = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (/^kemal-(adapt|telemetry)-/.test(k) || /-progress2?$/.test(k)) doomed.push(k);
+      }
+      doomed.forEach(function (k) { localStorage.removeItem(k); });
+      localStorage.setItem("kemal-reset", String(RESET_EPOCH));
+    }
+  } catch (e) {}
+
   function load(key, def) {
     try {
       var v = JSON.parse(localStorage.getItem(key));
