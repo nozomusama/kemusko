@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Yılanın Yolu ➡️</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    touch-action: manipulation;
+    font-family: "Comic Sans MS", "Chalkboard SE", "Segoe UI", sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    background: #d7f2e3;
+  }
+  body { display: flex; flex-direction: column; }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.6vh 3vw;
+    flex: 0 0 auto;
+  }
+  .home-btn {
+    text-decoration: none;
+    font-size: clamp(26px, 7.5vw, 42px);
+    background: #fff;
+    border-radius: 50%;
+    width: clamp(48px, 13vw, 70px);
+    height: clamp(48px, 13vw, 70px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 5px 0 rgba(0,0,0,.15);
+  }
+  .home-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.15); }
+  .badge {
+    font-size: clamp(18px, 5vw, 30px);
+    font-weight: bold;
+    color: #444;
+    background: #fff;
+    border-radius: 20px;
+    padding: .9vh 3.5vw;
+    box-shadow: 0 5px 0 rgba(0,0,0,.15);
+  }
+  #game { display: block; flex: 1 1 auto; min-height: 0; }
+  /* Komut şeridi: programın şekli boş yuvalarla görünür */
+  #strip {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.4vw;
+    padding: 1vh 2vw;
+    min-height: clamp(52px, 13vw, 74px);
+  }
+  .slot {
+    width: clamp(38px, 9.5vw, 56px);
+    height: clamp(38px, 9.5vw, 56px);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(22px, 5.6vw, 34px);
+    flex: 0 0 auto;
+  }
+  .slot.empty { background: rgba(255,255,255,.5); border: 3px dashed #9ccfba; }
+  .slot.card {
+    background: #fff;
+    border: 3px solid #26a69a;
+    box-shadow: 0 4px 0 rgba(0,0,0,.15);
+    animation: pop .18s;
+  }
+  @keyframes pop { from { transform: scale(.5); } to { transform: scale(1); } }
+  .slot.card.run { background: #fff59d; border-color: #fbc02d; transform: scale(1.22); }
+  .slot.card.bad { background: #ffcdd2; border-color: #e53935; animation: shake .4s 2; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+  }
+  .slot.loop { background: #ede7f6; border: 3px solid #7e57c2; }
+  /* Palet */
+  #pad {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2.4vw;
+    padding: 1vh 3vw calc(1.6vh + env(safe-area-inset-bottom, 0px));
+  }
+  .key {
+    width: clamp(54px, 15vw, 78px);
+    height: clamp(54px, 15vw, 78px);
+    border-radius: 20px;
+    background: #fff;
+    border: 4px solid #26a69a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(26px, 7vw, 40px);
+    box-shadow: 0 5px 0 rgba(0,0,0,.18);
+  }
+  .key:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.18); }
+  .key.hint { animation: glow .7s infinite alternate; }
+  @keyframes glow {
+    from { background: #fff; }
+    to { background: #b2ebf2; transform: scale(1.12); }
+  }
+  #play {
+    background: #4caf50;
+    border-color: #fff;
+    width: clamp(60px, 17vw, 88px);
+    height: clamp(60px, 17vw, 88px);
+    font-size: clamp(30px, 8vw, 46px);
+  }
+  #play.off { opacity: .35; }
+  #loopKey { border-color: #7e57c2; display: none; }
+  #loopKey.show { display: flex; }
+  #loopKey.on { background: #d1c4e9; }
+  #celebrate {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,.5);
+    z-index: 10;
+    pointer-events: none;
+  }
+  #celebrate.show { display: flex; }
+  #celebrate .msg {
+    font-size: clamp(70px, 24vw, 150px);
+    animation: bounce .6s infinite alternate;
+  }
+  @keyframes bounce { from { transform: scale(1); } to { transform: scale(1.25); } }
+  .confetti {
+    position: fixed;
+    top: -5vh;
+    font-size: clamp(20px, 6vw, 36px);
+    animation: fall linear forwards;
+    z-index: 11;
+    pointer-events: none;
+  }
+  @keyframes fall { to { transform: translateY(115vh) rotate(720deg); } }
+</style>
+</head>
+<body>
+  <header>
+    <a class="home-btn" href="../../index.html">🏠</a>
+    <div class="badge" id="level-badge">Bölüm 1</div>
+    <div class="badge" id="goal-badge">🥚</div>
+  </header>
+  <canvas id="game"></canvas>
+  <div id="strip"></div>
+  <div id="pad"></div>
+  <div id="celebrate"><div class="msg">🎉</div></div>
+
+<script src="../shared/adapt.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // ---- Ayar sabitleri (cihazda ince ayar için tek yerde) ----
+  var STEP_MS = 280;        // bir adımın süresi — kısa tutulur, bekleme olmasın
+  var BUMP_MS = 650;        // çarpma sonrası duraklama
+  var HINT_AFTER = 3;       // kaç başarısız denemeden sonra ipucu
+
+  // Kademeler: adım = yol uzunluğu, esya = ⭐/🔑 kuralları, onizleme = noktalı yol
+  var TIERS = /*TIERS_START*/[
+    {"w":3,"h":3,"steps":2,"rocks":0,"item":"","onizleme":true,"loop":false},
+    {"w":3,"h":3,"steps":3,"rocks":1,"item":"","onizleme":true,"loop":false},
+    {"w":4,"h":4,"steps":4,"rocks":1,"item":"star","onizleme":true,"loop":false},
+    {"w":4,"h":4,"steps":5,"rocks":2,"item":"star","onizleme":false,"loop":false},
+    {"w":5,"h":5,"steps":6,"rocks":2,"item":"key","onizleme":false,"loop":false},
+    {"w":5,"h":5,"steps":7,"rocks":3,"item":"keystar","onizleme":false,"loop":false},
+    {"w":5,"h":5,"steps":8,"rocks":3,"item":"star","onizleme":false,"loop":true}
+  ]/*TIERS_END*/;
+
+  var DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  var ARROW = { up: "⬆️", down: "⬇️", left: "⬅️", right: "➡️" };
+  var DIR_NAMES = ["up", "right", "down", "left"];
+  var ROCKS = ["🪨", "🌳", "🌵"];
+
+  /*GEN_START*/
+  // Bölüm üretici: kendini kesmeyen rastgele yürüyüşle yol kurulur, bu yüzden
+  // çözülebilirlik İNŞA GEREĞİ garantidir. Üretilen her bölüm yine de gömülü
+  // doğrulayıcıdan geçmeden kabul edilmez.
+  function keyOf(x, y) { return x + "," + y; }
+
+  function walkPath(p, rand) {
+    var dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+    for (var attempt = 0; attempt < 200; attempt++) {
+      var x = Math.floor(rand() * p.w), y = Math.floor(rand() * p.h);
+      var path = [[x, y]];
+      var used = {};
+      used[keyOf(x, y)] = 1;
+      var moves = [];
+      var okWalk = true;
+      for (var s = 0; s < p.steps; s++) {
+        var opts = [];
+        for (var d = 0; d < dirs.length; d++) {
+          var nx = x + dirs[d][0], ny = y + dirs[d][1];
+          if (nx < 0 || nx >= p.w || ny < 0 || ny >= p.h) continue;
+          if (used[keyOf(nx, ny)]) continue;
+          opts.push([dirs[d], nx, ny]);
+        }
+        if (!opts.length) { okWalk = false; break; }
+        var pick = opts[Math.floor(rand() * opts.length)];
+        moves.push(pick[0]);
+        x = pick[1]; y = pick[2];
+        path.push([x, y]);
+        used[keyOf(x, y)] = 1;
+      }
+      if (okWalk && path.length === p.steps + 1) return { path: path, moves: moves };
+    }
+    return null;
+  }
+
+  // Tekrar motifli yürüyüş (döngü kademesi): aynı hamle dizisi iki kez
+  function walkLoopPath(p, rand) {
+    var half = Math.floor(p.steps / 2);
+    if (half < 2) return null;
+    var dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+    for (var attempt = 0; attempt < 300; attempt++) {
+      var sx = Math.floor(rand() * p.w), sy = Math.floor(rand() * p.h);
+      var motif = [];
+      for (var m = 0; m < half; m++) motif.push(dirs[Math.floor(rand() * dirs.length)]);
+      var x = sx, y = sy;
+      var path = [[x, y]];
+      var used = {};
+      used[keyOf(x, y)] = 1;
+      var moves = [];
+      var okWalk = true;
+      for (var r = 0; r < 2 && okWalk; r++) {
+        for (var i = 0; i < motif.length; i++) {
+          x += motif[i][0]; y += motif[i][1];
+          if (x < 0 || x >= p.w || y < 0 || y >= p.h || used[keyOf(x, y)]) { okWalk = false; break; }
+          used[keyOf(x, y)] = 1;
+          path.push([x, y]);
+          moves.push(motif[i]);
+        }
+      }
+      if (okWalk && path.length === half * 2 + 1) {
+        return { path: path, moves: moves, motif: motif.length };
+      }
+    }
+    return null;
+  }
+
+  // Doğrulayıcı: gerekli ögeler SIRAYLA toplanıp hedefe varılabiliyor mu?
+  // (BFS ile her ara durak arasında engelsiz yol aranır.)
+  function reachable(from, to, rocks, w, h) {
+    var q = [from], seen = {};
+    seen[keyOf(from[0], from[1])] = 1;
+    var dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+    while (q.length) {
+      var c = q.shift();
+      if (c[0] === to[0] && c[1] === to[1]) return true;
+      for (var d = 0; d < dirs.length; d++) {
+        var nx = c[0] + dirs[d][0], ny = c[1] + dirs[d][1];
+        var k = keyOf(nx, ny);
+        if (nx < 0 || nx >= w || ny < 0 || ny >= h || seen[k] || rocks[k]) continue;
+        seen[k] = 1;
+        q.push([nx, ny]);
+      }
+    }
+    return false;
+  }
+
+  function validateLevel(lv) {
+    var stops = [lv.start];
+    if (lv.key) stops.push(lv.key);
+    if (lv.star) stops.push(lv.star);
+    stops.push(lv.goal);
+    // Ara duraklar arasında engelsiz yol olmalı; taşlar durakların üstünde olmamalı
+    for (var i = 0; i < stops.length; i++) {
+      if (lv.rocks[keyOf(stops[i][0], stops[i][1])]) return false;
+    }
+    for (var j = 0; j < stops.length - 1; j++) {
+      if (!reachable(stops[j], stops[j + 1], lv.rocks, lv.w, lv.h)) return false;
+    }
+    return true;
+  }
+
+  function generateLevel(p, rand) {
+    rand = rand || Math.random;
+    for (var attempt = 0; attempt < 300; attempt++) {
+      var walk = p.loop ? walkLoopPath(p, rand) : walkPath(p, rand);
+      if (!walk) continue;
+      var path = walk.path;
+      var onPath = {};
+      for (var i = 0; i < path.length; i++) onPath[keyOf(path[i][0], path[i][1])] = 1;
+
+      // Taşlar yalnızca yol DIŞINDAKİ hücrelere konur → yolu asla kapatamaz
+      var free = [];
+      for (var y = 0; y < p.h; y++) {
+        for (var x = 0; x < p.w; x++) {
+          if (!onPath[keyOf(x, y)]) free.push([x, y]);
+        }
+      }
+      var rocks = {};
+      for (var r = 0; r < p.rocks && free.length; r++) {
+        var idx = Math.floor(rand() * free.length);
+        var c = free.splice(idx, 1)[0];
+        rocks[keyOf(c[0], c[1])] = ROCKS[Math.floor(rand() * ROCKS.length)];
+      }
+
+      // ⭐ / 🔑 yolun ARA hücrelerine konur → o yolla toplanabilirlik garanti
+      var mids = path.slice(1, path.length - 1);
+      var star = null, key = null;
+      var wantKey = p.item === "key" || p.item === "keystar";
+      var wantStar = p.item === "star" || p.item === "keystar";
+      if ((wantKey ? 1 : 0) + (wantStar ? 1 : 0) > mids.length) continue;
+      var pool = mids.slice();
+      if (wantKey) key = pool.splice(Math.floor(rand() * pool.length), 1)[0];
+      if (wantStar) {
+        if (!pool.length) continue;
+        star = pool.splice(Math.floor(rand() * pool.length), 1)[0];
+      }
+      // Anahtar, yıldızdan sonra gelmemeli değil — sıra yol boyunca zaten sabit;
+      // doğrulayıcı gerçek sırayı yol üzerindeki konumdan alır
+      if (key && star) {
+        var ki = -1, si = -1;
+        for (var m = 0; m < path.length; m++) {
+          if (path[m][0] === key[0] && path[m][1] === key[1]) ki = m;
+          if (path[m][0] === star[0] && path[m][1] === star[1]) si = m;
+        }
+        if (si < ki) { var tmp = key; key = star; star = tmp; }
+      }
+
+      var lv = {
+        w: p.w, h: p.h, start: path[0], goal: path[path.length - 1],
+        rocks: rocks, star: star, key: key,
+        solution: walk.moves, motif: walk.motif || 0,
+        onizleme: p.onizleme, loop: !!p.loop
+      };
+      if (validateLevel(lv)) return lv;
+    }
+    return null;
+  }
+  /*GEN_END*/
+
+  var canvas = document.getElementById("game");
+  var ctx = canvas.getContext("2d");
+  var levelBadge = document.getElementById("level-badge");
+  var goalBadge = document.getElementById("goal-badge");
+  var stripEl = document.getElementById("strip");
+  var padEl = document.getElementById("pad");
+  var celebrateEl = document.getElementById("celebrate");
+  var celebrateMsg = celebrateEl.querySelector(".msg");
+
+  if (!window.KemalAdapt) {
+    // Paylaşılan modül yüklenemezse basit yedek (kalıcı kayıt tutmaz)
+    window.KemalAdapt = { create: function (g, o) {
+      var lvl = o.start || 0;
+      var streak = 0;
+      return { get level() { return lvl; }, record: function (r) {
+        if (r.hard) { lvl = Math.max(o.min, lvl - 1); streak = 0; }
+        else if (r.smooth && ++streak >= (o.streak || 2)) { lvl = Math.min(o.max, lvl + 1); streak = 0; }
+        else if (!r.smooth) streak = 0;
+        return lvl;
+      } };
+    } };
+  }
+  var adapt = window.KemalAdapt.create("komut", { min: 0, max: TIERS.length - 1, start: 0, streak: 2 });
+
+  var progress = null;
+  try { progress = JSON.parse(localStorage.getItem("komut-progress") || "null"); } catch (e) {}
+  if (!progress || typeof progress.num !== "number") progress = { num: 1 };
+  function saveProgress() {
+    try { localStorage.setItem("komut-progress", JSON.stringify(progress)); } catch (e) {}
+  }
+
+  // ---- Durum ----
+  var W = 0, H = 0, DPR = 1;
+  var lv = null;
+  var board = { x: 0, y: 0, cell: 40 };
+  var program = [];          // yön adları
+  var maxSlots = 4;
+  var useLoop = false;       // 🔁 tekrar kartı açık mı
+  var running = false;
+  var runIdx = -1, runT = 0;
+  var snake = { x: 0, y: 0, px: 0, py: 0, dazed: 0 };
+  var trail = [];            // yılanın bıraktığı iz
+  var hasKey = false, hasStar = false;
+  var doorShake = 0, itemPop = -1e9;
+  var attempts = 0, hintsUsed = 0, bumps = 0, levelStart = 0;
+  var state = "editing";     // editing | running | celebrating
+
+  function tier() { return TIERS[adapt.level]; }
+
+  // ---- Sesler ----
+  var audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  }
+  function beep(freq, dur, type, delay, vol) {
+    if (!audioCtx) return;
+    var t = audioCtx.currentTime + (delay || 0);
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = type || "sine";
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol || 0.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + dur);
+  }
+  // Yön → perde eşlemesi: yukarı tiz, aşağı pes (sesle de yön öğrenilir)
+  var DIR_PITCH = { up: 880, right: 660, down: 440, left: 550 };
+  function soundArrow(d) { beep(DIR_PITCH[d], 0.1, "triangle"); }
+  function soundStep(d)  { beep(DIR_PITCH[d] * 0.75, 0.09, "sine", 0, 0.14); }
+  function soundBump()   { beep(150, 0.28, "sawtooth"); }
+  function soundLocked() { beep(300, 0.12, "square", 0, 0.14); beep(240, 0.16, "square", 0.11, 0.14); }
+  function soundGrab()   { beep(880, 0.1, "sine"); beep(1175, 0.14, "sine", 0.08); }
+  function soundDel()    { beep(320, 0.08, "triangle", 0, 0.14); }
+  function soundWin()    { [523, 659, 784, 1047].forEach(function (f, i) { beep(f, 0.25, "sine", i * 0.14); }); }
+  function soundTrophy() { [523, 659, 784, 1047, 784, 1047, 1319].forEach(function (f, i) { beep(f, 0.24, "sine", i * 0.13); }); }
+  document.addEventListener("pointerdown", ensureAudio);
+
+  // ---- Yerleşim ----
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    var r = canvas.getBoundingClientRect();
+    W = Math.max(1, Math.round(r.width));
+    H = Math.max(1, Math.round(r.height));
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    // CSS boyutunu piksel olarak sabitle (mobilde dokunma kayması olmasın)
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    layout();
+  }
+
+  function layout() {
+    if (!lv) return;
+    var pad = Math.min(W, H) * 0.06;
+    board.cell = Math.floor(Math.min((W - pad * 2) / lv.w, (H - pad * 2) / lv.h));
+    board.x = (W - board.cell * lv.w) / 2;
+    board.y = (H - board.cell * lv.h) / 2;
+  }
+
+  function cx(gx) { return board.x + (gx + 0.5) * board.cell; }
+  function cy(gy) { return board.y + (gy + 0.5) * board.cell; }
+
+  // ---- Komut şeridi ----
+  function buildStrip() {
+    stripEl.innerHTML = "";
+    var i;
+    if (useLoop) {
+      var open = document.createElement("div");
+      open.className = "slot loop";
+      open.textContent = "🔁";
+      stripEl.appendChild(open);
+    }
+    for (i = 0; i < maxSlots; i++) {
+      var d = document.createElement("div");
+      if (i < program.length) {
+        d.className = "slot card";
+        d.textContent = ARROW[program[i]];
+        (function (idx) {
+          d.addEventListener("pointerdown", function (e) {
+            // Karta dokunmak onu siler — küçük parmaklar için en doğrudan düzeltme
+            if (state !== "editing") return;
+            ensureAudio();
+            program.splice(idx, 1);
+            soundDel();
+            buildStrip();
+            e.stopPropagation();
+          });
+        })(i);
+      } else {
+        d.className = "slot empty";
+      }
+      stripEl.appendChild(d);
+    }
+    if (useLoop) {
+      var close = document.createElement("div");
+      close.className = "slot loop";
+      close.textContent = "2×";
+      stripEl.appendChild(close);
+    }
+    playBtn.classList.toggle("off", program.length === 0);
+  }
+
+  function cardEls() {
+    return stripEl.querySelectorAll(".slot.card");
+  }
+
+  // ---- Palet ----
+  var playBtn, loopBtn;
+  var keyBtns = {};
+  function buildPad() {
+    padEl.innerHTML = "";
+    DIR_NAMES.forEach(function (d) {
+      var b = document.createElement("div");
+      b.className = "key";
+      b.textContent = ARROW[d];
+      b.addEventListener("pointerdown", function (e) {
+        ensureAudio();
+        if (state !== "editing") return;
+        if (program.length >= maxSlots) { flashFull(); return; }
+        program.push(d);
+        soundArrow(d);
+        clearHint();
+        buildStrip();
+        e.stopPropagation();
+      });
+      keyBtns[d] = b;
+      padEl.appendChild(b);
+    });
+
+    loopBtn = document.createElement("div");
+    loopBtn.className = "key";
+    loopBtn.id = "loopKey";
+    loopBtn.textContent = "🔁";
+    loopBtn.addEventListener("pointerdown", function (e) {
+      ensureAudio();
+      if (state !== "editing") return;
+      useLoop = !useLoop;
+      loopBtn.classList.toggle("on", useLoop);
+      beep(useLoop ? 700 : 500, 0.12, "triangle");
+      buildStrip();
+      e.stopPropagation();
+    });
+    padEl.appendChild(loopBtn);
+
+    playBtn = document.createElement("div");
+    playBtn.className = "key";
+    playBtn.id = "play";
+    playBtn.textContent = "▶️";
+    playBtn.addEventListener("pointerdown", function (e) {
+      ensureAudio();
+      if (state === "editing" && program.length) startRun();
+      e.stopPropagation();
+    });
+    padEl.appendChild(playBtn);
+  }
+
+  function flashFull() {
+    var cards = cardEls();
+    for (var i = 0; i < cards.length; i++) {
+      cards[i].classList.add("bad");
+      (function (c) { setTimeout(function () { c.classList.remove("bad"); }, 400); })(cards[i]);
+    }
+  }
+
+  // ---- İpucu: 3 başarısız denemeden sonra doğru oku yumuşakça yak ----
+  function clearHint() {
+    DIR_NAMES.forEach(function (d) { keyBtns[d].classList.remove("hint"); });
+  }
+  function maybeHint() {
+    clearHint();
+    if (attempts < HINT_AFTER || !lv) return;
+    // Programın doğru olan ön eki kadar ilerle, sıradaki doğru oku göster
+    var i = 0;
+    while (i < program.length && i < lv.solution.length &&
+           DIRS[program[i]][0] === lv.solution[i][0] &&
+           DIRS[program[i]][1] === lv.solution[i][1]) i++;
+    if (i >= lv.solution.length) return;
+    var want = lv.solution[i];
+    for (var k = 0; k < DIR_NAMES.length; k++) {
+      var d = DIR_NAMES[k];
+      if (DIRS[d][0] === want[0] && DIRS[d][1] === want[1]) {
+        keyBtns[d].classList.add("hint");
+        hintsUsed++;
+        return;
+      }
+    }
+  }
+
+  // ---- Bölüm ----
+  function loadLevel() {
+    var p = tier();
+    lv = generateLevel(p) || generateLevel(TIERS[0]);
+    maxSlots = Math.max(4, lv.solution.length + 2);
+    if (p.loop) maxSlots = Math.max(4, Math.ceil(lv.solution.length / 2) + 2);
+    program = [];
+    useLoop = false;
+    hasKey = false; hasStar = false;
+    attempts = 0; hintsUsed = 0; bumps = 0;
+    levelStart = performance.now();
+    state = "editing";
+    running = false;
+    resetSnake();
+    layout();
+    levelBadge.textContent = "Bölüm " + progress.num;
+    goalBadge.textContent = lv.key ? "🔑🥚" : (lv.star ? "⭐🥚" : "🥚");
+    loopBtn.classList.toggle("show", !!p.loop);
+    loopBtn.classList.remove("on");
+    clearHint();
+    buildStrip();
+  }
+
+  function resetSnake() {
+    snake.x = lv.start[0]; snake.y = lv.start[1];
+    snake.px = snake.x; snake.py = snake.y;
+    snake.dazed = 0;
+    trail = [[snake.x, snake.y]];
+    hasKey = false; hasStar = false;
+  }
+
+  // Çalıştırılacak tam dizi (🔁 açıksa iki kez)
+  function fullProgram() {
+    return useLoop ? program.concat(program) : program.slice();
+  }
+
+  function startRun() {
+    attempts++;
+    resetSnake();
+    state = "running";
+    running = true;
+    runIdx = 0;
+    runT = 0;
+    highlight(0);
+  }
+
+  function highlight(i) {
+    var cards = cardEls();
+    for (var k = 0; k < cards.length; k++) cards[k].classList.remove("run");
+    var idx = useLoop ? (i % program.length) : i;
+    if (cards[idx]) cards[idx].classList.add("run");
+  }
+
+  function markBad(i) {
+    var cards = cardEls();
+    var idx = useLoop ? (i % program.length) : i;
+    if (cards[idx]) {
+      cards[idx].classList.remove("run");
+      cards[idx].classList.add("bad");
+      (function (c) { setTimeout(function () { c.classList.remove("bad"); }, 900); })(cards[idx]);
+    }
+  }
+
+  function cellBlocked(x, y) {
+    if (x < 0 || x >= lv.w || y < 0 || y >= lv.h) return true;
+    if (lv.rocks[keyOf(x, y)]) return true;
+    return false;
+  }
+
+  function stepRun() {
+    var prog = fullProgram();
+    if (runIdx >= prog.length) { endRun(false); return; }
+    var d = DIRS[prog[runIdx]];
+    var nx = snake.x + d[0], ny = snake.y + d[1];
+
+    if (cellBlocked(nx, ny)) {
+      // Neden-sonuç: suçlu kart kırmızı titrer, yılan sersemler
+      bumps++;
+      markBad(runIdx);
+      soundBump();
+      snake.dazed = performance.now() + BUMP_MS;
+      running = false;
+      setTimeout(function () { endRun(false); }, BUMP_MS);
+      return;
+    }
+
+    // Hedefe varış: gerekli ögeler alınmadıysa kapı/yumurta reddeder
+    if (nx === lv.goal[0] && ny === lv.goal[1]) {
+      if ((lv.key && !hasKey) || (lv.star && !hasStar)) {
+        doorShake = performance.now() + 600;
+        soundLocked();
+        markBad(runIdx);
+        running = false;
+        setTimeout(function () { endRun(false); }, BUMP_MS);
+        return;
+      }
+    }
+
+    snake.px = snake.x; snake.py = snake.y;
+    snake.x = nx; snake.y = ny;
+    trail.push([nx, ny]);
+    if (trail.length > 6) trail.shift();
+    soundStep(prog[runIdx]);
+
+    if (lv.key && !hasKey && nx === lv.key[0] && ny === lv.key[1]) {
+      hasKey = true; itemPop = performance.now(); soundGrab();
+    }
+    if (lv.star && !hasStar && nx === lv.star[0] && ny === lv.star[1]) {
+      hasStar = true; itemPop = performance.now(); soundGrab();
+    }
+    if (nx === lv.goal[0] && ny === lv.goal[1]) {
+      running = false;
+      setTimeout(function () { endRun(true); }, STEP_MS);
+      return;
+    }
+
+    runIdx++;
+    runT = 0;
+    if (runIdx < prog.length) highlight(runIdx);
+    else { running = false; setTimeout(function () { endRun(false); }, STEP_MS); }
+  }
+
+  function endRun(win) {
+    var cards = cardEls();
+    for (var k = 0; k < cards.length; k++) cards[k].classList.remove("run");
+    if (win) { levelDone(); return; }
+    // Kaybetme yok: yılan başa döner, kartlar DURUR, çocuk düzeltip dener
+    state = "editing";
+    running = false;
+    runIdx = -1;
+    setTimeout(function () {
+      if (state === "editing") resetSnake();
+      maybeHint();
+    }, 350);
+  }
+
+  function levelDone() {
+    state = "celebrating";
+    running = false;
+    var sure = (performance.now() - levelStart) / 1000;
+    var par = 20 + lv.solution.length * 6;
+    var smart = useLoop && lv.motif > 0;
+    adapt.record({
+      hard: attempts >= 4 || sure > par * 2.5,
+      smooth: attempts <= 1 && sure <= par,
+      bolum: progress.num, adim: lv.solution.length, deneme: attempts,
+      carpma: bumps, ipucu: hintsUsed, sure: Math.round(sure)
+    });
+    var isTrophy = progress.num % 10 === 0;
+    celebrateMsg.textContent = isTrophy ? "🏆" : (smart ? "🤩" : "🐣");
+    celebrateEl.classList.add("show");
+    throwConfetti(isTrophy ? 44 : (smart ? 36 : 26));
+    if (isTrophy) soundTrophy(); else soundWin();
+    setTimeout(function () {
+      celebrateEl.classList.remove("show");
+      progress.num++;
+      saveProgress();
+      loadLevel();
+    }, isTrophy ? 3400 : 2400);
+  }
+
+  var CONFETTI = ["🎉", "⭐", "🥚", "✨", "🐍", "💚"];
+  function throwConfetti(n) {
+    for (var i = 0; i < n; i++) {
+      var piece = document.createElement("div");
+      piece.className = "confetti";
+      piece.textContent = CONFETTI[(Math.random() * CONFETTI.length) | 0];
+      piece.style.left = Math.random() * 100 + "vw";
+      piece.style.animationDuration = 1.6 + Math.random() * 1.6 + "s";
+      piece.style.animationDelay = Math.random() * 0.5 + "s";
+      document.body.appendChild(piece);
+      (function (p) { setTimeout(function () { p.remove(); }, 4000); })(piece);
+    }
+  }
+
+  // ---- Çizim ----
+  function drawEmoji(e, x, y, size, alpha) {
+    ctx.save();
+    if (alpha != null) ctx.globalAlpha = alpha;
+    ctx.font = size + "px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(e, x, y);
+    ctx.restore();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // Noktalı yol önizlemesi: dizinin sonucunu ANINDA gösterir (kademe 0-2)
+  function drawPreview(now) {
+    if (!lv.onizleme || state !== "editing" || !program.length) return;
+    var prog = fullProgram();
+    var x = lv.start[0], y = lv.start[1];
+    ctx.save();
+    ctx.strokeStyle = "rgba(38,166,154,.75)";
+    ctx.lineWidth = Math.max(3, board.cell * 0.08);
+    ctx.lineCap = "round";
+    ctx.setLineDash([board.cell * 0.14, board.cell * 0.16]);
+    ctx.lineDashOffset = -(now / 40) % 1000;
+    ctx.beginPath();
+    ctx.moveTo(cx(x), cy(y));
+    for (var i = 0; i < prog.length; i++) {
+      var d = DIRS[prog[i]];
+      var nx = x + d[0], ny = y + d[1];
+      if (cellBlocked(nx, ny)) {
+        // Duvara/taşa çarpacaksa orada kırmızı X göster
+        ctx.stroke();
+        ctx.restore();
+        drawEmoji("❌", cx(x) + d[0] * board.cell * 0.4, cy(y) + d[1] * board.cell * 0.4,
+                  board.cell * 0.4, 0.85);
+        return;
+      }
+      x = nx; y = ny;
+      ctx.lineTo(cx(x), cy(y));
+    }
+    ctx.stroke();
+    ctx.restore();
+    drawEmoji("🔵", cx(x), cy(y), board.cell * 0.3, 0.6);
+  }
+
+  function draw(now) {
+    var sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, "#e8f8f0");
+    sky.addColorStop(1, "#cdeede");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+    if (!lv) return;
+
+    var c = board.cell;
+    // Izgara
+    for (var y = 0; y < lv.h; y++) {
+      for (var x = 0; x < lv.w; x++) {
+        ctx.fillStyle = ((x + y) % 2) ? "rgba(255,255,255,.75)" : "rgba(255,255,255,.5)";
+        roundRect(board.x + x * c + c * 0.04, board.y + y * c + c * 0.04, c * 0.92, c * 0.92, c * 0.16);
+        ctx.fill();
+      }
+    }
+
+    drawPreview(now);
+
+    // Eşyalar
+    if (lv.key && !hasKey) drawEmoji("🔑", cx(lv.key[0]), cy(lv.key[1]), c * 0.55);
+    if (lv.star && !hasStar) {
+      var wob = Math.sin(now / 220) * c * 0.04;
+      drawEmoji("⭐", cx(lv.star[0]), cy(lv.star[1]) + wob, c * 0.55);
+    }
+    // Taşlar
+    for (var k in lv.rocks) {
+      if (!Object.prototype.hasOwnProperty.call(lv.rocks, k)) continue;
+      var p = k.split(",");
+      drawEmoji(lv.rocks[k], cx(+p[0]), cy(+p[1]), c * 0.6);
+    }
+    // Hedef: kilitliyse kapı, açıksa yumurta
+    var locked = (lv.key && !hasKey) || (lv.star && !hasStar);
+    var shake = now < doorShake ? Math.sin(now / 40) * c * 0.06 : 0;
+    drawEmoji(locked ? "🚪" : "🥚", cx(lv.goal[0]) + shake, cy(lv.goal[1]), c * 0.62);
+
+    // Yılanın izi (programladığı yolu görsel olarak çizer)
+    for (var i = 0; i < trail.length - 1; i++) {
+      drawEmoji("🟢", cx(trail[i][0]), cy(trail[i][1]), c * 0.3, 0.18 + i * 0.08);
+    }
+
+    // Yılan (hücreler arası yumuşak kayma)
+    var t = running ? Math.min(runT / STEP_MS, 1) : 1;
+    var ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    var sx = cx(snake.px + (snake.x - snake.px) * ease);
+    var sy = cy(snake.py + (snake.y - snake.py) * ease);
+    var dazed = now < snake.dazed;
+    var bob = dazed ? 0 : Math.sin(now / 260) * c * 0.03;
+    drawEmoji(dazed ? "😵" : "🐍", sx, sy + bob, c * 0.62);
+  }
+
+  var last = 0;
+  function loop(now) {
+    var dt = Math.min(now - last, 60);
+    last = now;
+    if (running) {
+      runT += dt;
+      if (runT >= STEP_MS) { runT = 0; stepRun(); }
+    }
+    draw(now);
+    requestAnimationFrame(loop);
+  }
+
+  window.addEventListener("resize", resize);
+
+  // Salt-okunur test kancası (oyun davranışını etkilemez)
+  window.__komutDebug = {
+    level: function () {
+      return { w: lv.w, h: lv.h, start: lv.start, goal: lv.goal,
+               star: lv.star, key: lv.key, rocks: Object.keys(lv.rocks),
+               steps: lv.solution.length, loop: lv.loop };
+    },
+    solution: function () {
+      return lv.solution.map(function (d) {
+        for (var k = 0; k < DIR_NAMES.length; k++) {
+          var n = DIR_NAMES[k];
+          if (DIRS[n][0] === d[0] && DIRS[n][1] === d[1]) return n;
+        }
+        return "?";
+      });
+    },
+    program: function () { return program.slice(); },
+    state: function () { return state; },
+    tier: function () { return adapt.level; },
+    attempts: function () { return attempts; },
+    generate: function (p) { return generateLevel(p); },
+    tiers: function () { return TIERS; }
+  };
+
+  buildPad();
+  loadLevel();
+  resize();
+  requestAnimationFrame(function (t) { last = t; requestAnimationFrame(loop); });
+})();
+</script>
+</body>
+</html>
