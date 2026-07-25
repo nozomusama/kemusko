@@ -293,6 +293,13 @@
       var walk = p.loop ? walkLoopPath(p, rand) : walkPath(p, rand);
       if (!walk) continue;
       var path = walk.path;
+
+      // Yumurta yılanın dibinde bitmesin: yürüyüş dolanıp başlangıcın hemen
+      // yanında sonlanabiliyordu — çocuk tek okla bölümü geçebilirdi.
+      // En az 3 kare (kısa bölümlerde adım sayısı kadar) uzaklık şart.
+      var gs = path[0], ge = path[path.length - 1];
+      var dist = Math.abs(ge[0] - gs[0]) + Math.abs(ge[1] - gs[1]);
+      if (dist < Math.min(3, p.steps)) continue;
       var onPath = {};
       for (var i = 0; i < path.length; i++) onPath[keyOf(path[i][0], path[i][1])] = 1;
 

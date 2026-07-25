@@ -55,6 +55,10 @@ TIERS.forEach((p, ti) => {
     if (wantStar !== !!lv.star) err(`kademe ${ti}: yıldız beklentisi tutmuyor`);
     if (Object.keys(lv.rocks).length !== p.rocks) err(`kademe ${ti}: engel sayısı tutmuyor`);
 
+    // 2b) Yumurta yılanın dibinde olmamalı: en az min(3, adım) kare uzakta
+    const dist = Math.abs(lv.goal[0] - lv.start[0]) + Math.abs(lv.goal[1] - lv.start[1]);
+    if (dist < Math.min(3, p.steps)) err(`kademe ${ti}: hedef çok yakın (mesafe ${dist})`);
+
     // 3) Başlangıç/hedef/öge hücrelerinde engel olmamalı
     for (const cell of [lv.start, lv.goal, lv.key, lv.star]) {
       if (cell && lv.rocks[k(cell[0], cell[1])]) err(`kademe ${ti}: önemli hücrede engel var`);
