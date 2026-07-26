@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Kamera Oyunları 📷</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    touch-action: manipulation;
+    font-family: "Comic Sans MS", "Chalkboard SE", "Segoe UI", sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    background: linear-gradient(160deg, #7ec8ff 0%, #b3e5fc 45%, #aef3b0 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4vh;
+    padding: 4vw;
+  }
+  .sun {
+    position: fixed;
+    top: 4vh; right: 6vw;
+    font-size: clamp(48px, 12vw, 90px);
+    animation: spin 24s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .cloud {
+    position: fixed;
+    font-size: clamp(40px, 10vw, 72px);
+    opacity: .9;
+    animation: drift 30s linear infinite;
+  }
+  .cloud.c1 { top: 8vh; left: -20vw; }
+  .cloud.c2 { top: 20vh; left: -40vw; animation-duration: 42s; }
+  @keyframes drift { to { transform: translateX(160vw); } }
+  .home-btn {
+    position: fixed;
+    top: 2vh; left: 3vw;
+    text-decoration: none;
+    font-size: clamp(28px, 8vw, 44px);
+    background: #fff;
+    border-radius: 50%;
+    width: clamp(52px, 14vw, 76px);
+    height: clamp(52px, 14vw, 76px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 5px 0 rgba(0,0,0,.15);
+    z-index: 5;
+  }
+  .home-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.15); }
+  h1 {
+    font-size: clamp(24px, 5vw, 48px);
+    color: #ff5a8a;
+    text-shadow: 3px 3px 0 #fff;
+    text-align: center;
+    z-index: 1;
+  }
+  /* Dizüstü ekranı yatay: menü baştan iki sütun */
+  .menu {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3vh 3vw;
+    width: 100%;
+    max-width: 760px;
+    z-index: 1;
+  }
+  a.game-btn {
+    display: flex;
+    align-items: center;
+    gap: 3vw;
+    text-decoration: none;
+    background: #fff;
+    border-radius: 28px;
+    padding: 2.5vh 4vw;
+    box-shadow: 0 8px 0 rgba(0,0,0,.12);
+    transition: transform .1s;
+  }
+  a.game-btn:active { transform: scale(.95) translateY(4px); box-shadow: 0 3px 0 rgba(0,0,0,.12); }
+  a.game-btn .icon { font-size: clamp(40px, 9vh, 84px); }
+  a.game-btn .label {
+    font-size: clamp(18px, 3.6vh, 36px);
+    font-weight: bold;
+    color: #444;
+  }
+  a.game-btn.balon  { border: 6px solid #ef5350; }
+  a.game-btn.dans   { border: 6px solid #7e57c2; }
+  a.game-btn.taklit { border: 6px solid #ffa726; }
+  a.game-btn.agiz   { border: 6px solid #66bb6a; }
+</style>
+</head>
+<body>
+  <div class="sun">🌞</div>
+  <div class="cloud c1">☁️</div>
+  <div class="cloud c2">☁️</div>
+  <a class="home-btn" href="../../index.html">🏠</a>
+  <h1>📷 Kamera Oyunları 📷</h1>
+  <nav class="menu">
+    <a class="game-btn balon" href="balon/index.html">
+      <span class="icon">🎈</span>
+      <span class="label">Balon Patlat</span>
+    </a>
+    <a class="game-btn dans" href="dans/index.html">
+      <span class="icon">🕺</span>
+      <span class="label">Dans ve Don</span>
+    </a>
+    <a class="game-btn taklit" href="taklit/index.html">
+      <span class="icon">🤸</span>
+      <span class="label">Hareket Taklidi</span>
+    </a>
+    <a class="game-btn agiz" href="agzini-ac/index.html">
+      <span class="icon">🍎</span>
+      <span class="label">Ağzını Aç</span>
+    </a>
+  </nav>
+</body>
+</html>
