@@ -2,7 +2,7 @@ name: GitHub Pages'e Yayınla
 
 on:
   push:
-    branches: [claude/mobile-games-kemal-sco4pf, claude/camera-interactive-games-gssqaw]
+    branches: [claude/mobile-games-kemal-sco4pf]
   workflow_dispatch:
 
 permissions:

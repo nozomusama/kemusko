@@ -89,7 +89,8 @@ python3 -m http.server 8000
 ```
 
 Ya da GitHub Pages'i açarsanız (Settings → Pages → `main` branch) oyunlar doğrudan
-telefonun tarayıcısından oynanabilir.
+telefonun tarayıcısından oynanabilir. Kamera oyunları tarayıcı gereği yalnızca
+`http://localhost` veya HTTPS üzerinden kamera açabilir — Pages bunun için yeterli.
 
 ## Yapı
 
