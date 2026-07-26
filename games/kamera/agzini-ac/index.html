@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Ağzını Aç 🍎</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    touch-action: manipulation;
+    font-family: "Comic Sans MS", "Chalkboard SE", "Segoe UI", sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    background: #222;
+  }
+  #game { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 1; }
+  .home-btn {
+    position: fixed;
+    top: 2vh; left: 2vh;
+    text-decoration: none;
+    font-size: clamp(28px, 6vh, 44px);
+    background: #fff;
+    border-radius: 50%;
+    width: clamp(52px, 11vh, 76px);
+    height: clamp(52px, 11vh, 76px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 5px 0 rgba(0,0,0,.15);
+    z-index: 5;
+  }
+  .home-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.15); }
+  .badge {
+    position: fixed;
+    top: 2vh;
+    font-size: clamp(22px, 5vh, 40px);
+    background: rgba(255,255,255,.9);
+    border-radius: 20px;
+    padding: 1vh 2.5vw;
+    box-shadow: 0 5px 0 rgba(0,0,0,.12);
+    z-index: 5;
+    text-align: center;
+  }
+  #stars { right: 2vh; }
+  #goal  { right: 50%; transform: translateX(50%); }
+  #celebrate {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,.55);
+    z-index: 10;
+  }
+  #celebrate.show { display: flex; }
+  #celebrate .msg {
+    font-size: clamp(60px, 24vh, 160px);
+    animation: bounce .6s infinite alternate;
+  }
+  @keyframes bounce { from { transform: scale(1); } to { transform: scale(1.25); } }
+  .confetti {
+    position: fixed;
+    top: -5vh;
+    font-size: clamp(20px, 5vh, 36px);
+    animation: fall linear forwards;
+    z-index: 11;
+    pointer-events: none;
+  }
+  @keyframes fall { to { transform: translateY(115vh) rotate(720deg); } }
+</style>
+</head>
+<body>
+  <a class="home-btn" href="../index.html">🏠</a>
+  <div class="badge" id="goal">🍎 <span id="goal-count">0</span></div>
+  <div class="badge" id="stars">⭐ <span id="star-count">0</span></div>
+  <canvas id="game"></canvas>
+  <div id="celebrate"><div class="msg">🎉</div></div>
+
+<script src="../../shared/adapt.js"></script>
+<script src="../../shared/kamera.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  if (!window.KemalAdapt) {
+    // Paylaşılan modül yüklenemezse basit yedek (kalıcı kayıt tutmaz)
+    window.KemalAdapt = { create: function (g, o) {
+      var lvl = o.start || 0;
+      var streak = 0;
+      return { get level() { return lvl; }, record: function (r) {
+        if (r.hard) { lvl = Math.max(o.min, lvl - 1); streak = 0; }
+        else if (r.smooth && ++streak >= (o.streak || 2)) { lvl = Math.min(o.max, lvl + 1); streak = 0; }
+        else if (!r.smooth) streak = 0;
+        return lvl;
+      } };
+    } };
+  }
+  if (!window.KemalKamera) {
+    document.body.innerHTML =
+      '<a class="home-btn" href="../index.html">🏠</a>' +
+      '<div style="height:100%;display:flex;align-items:center;justify-content:center;font-size:20vh">😴</div>';
+    return;
+  }
+
+  // Kademeler: hiz = düşme hızı (ekran boyu/sn), nisan = "oto" (meyve ağza
+  // süzülür, sadece zamanlama) / "kafa" (düz düşer, kafayla hizalanır),
+  // agiz = jawOpen eşiği, hedef = yenecek meyve, ayni = eşzamanlı meyve
+  var TIERS = /*TIERS_START*/[
+    {"hiz":0.10,"nisan":"oto", "agiz":0.30,"hedef":5, "ayni":1},
+    {"hiz":0.13,"nisan":"oto", "agiz":0.35,"hedef":6, "ayni":1},
+    {"hiz":0.15,"nisan":"kafa","agiz":0.35,"hedef":7, "ayni":1},
+    {"hiz":0.18,"nisan":"kafa","agiz":0.40,"hedef":8, "ayni":2},
+    {"hiz":0.22,"nisan":"kafa","agiz":0.40,"hedef":10,"ayni":2}
+  ]/*TIERS_END*/;
+
+  var adapt = window.KemalAdapt.create("kamera-agzini-ac", { min: 0, max: TIERS.length - 1, start: 0, streak: 2 });
+
+  var FRUITS = ["🍎","🍌","🍓","🍇","🍊"];
+
+  var canvas = document.getElementById("game");
+  var ctx = canvas.getContext("2d");
+  var starCountEl = document.getElementById("star-count");
+  var goalCountEl = document.getElementById("goal-count");
+  var celebrateEl = document.getElementById("celebrate");
+
+  var W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // --- Sesler ---
+  var audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  }
+  function beep(freq, dur, type, delay) {
+    if (!audioCtx) return;
+    var t = audioCtx.currentTime + (delay || 0);
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = type || "sine";
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.22, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + dur);
+  }
+  function soundMunch() { beep(180, 0.08, "square"); beep(140, 0.12, "square", 0.09); }
+  function soundBoing() { beep(300, 0.1, "triangle"); beep(200, 0.15, "triangle", 0.08); }
+  function soundBonus() { [660, 880, 1100, 1320].forEach(function (f, i) { beep(f, 0.12, "sine", i * 0.08); }); }
+  function soundWin()   { [523, 659, 784, 1047].forEach(function (f, i) { beep(f, 0.25, "sine", i * 0.15); }); }
+  document.addEventListener("pointerdown", ensureAudio);
+
+  // Arka planda geçen süre zorluk ölçümüne sayılmasın
+  var hiddenAt = 0;
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) hiddenAt = performance.now();
+    else if (hiddenAt) { roundStart += performance.now() - hiddenAt; hiddenAt = 0; }
+  });
+
+  // --- Oyun durumu ---
+  var cam = null, motion = null, detector = null;
+  var playing = false;
+  var tier = TIERS[adapt.level];
+  var stars = 0;
+  var eaten = 0;
+  var kacan = 0;
+  var fruits = [];        // {x, y: video-norm, emoji, missed, floatY}
+  var particles = [];     // {x, y: ekran px, vx, vy, life, emoji}
+  var mouth = null;       // {x, y} video-norm (aynalı)
+  var mouthOpen = false;
+  var jawScore = 0, smileScore = 0;
+  var bonusCooldown = 0;
+  var roundStart = 0;
+  var lastDetect = 0;
+  var detectInterval = 42;
+  var detectDur = 0;
+
+  function spawnFruit() {
+    fruits.push({
+      x: 0.15 + Math.random() * 0.7,
+      y: -0.05 - Math.random() * 0.1,
+      emoji: FRUITS[Math.floor(Math.random() * FRUITS.length)],
+      missed: false
+    });
+  }
+
+  function newRound() {
+    tier = TIERS[adapt.level];
+    eaten = 0;
+    kacan = 0;
+    fruits = [];
+    for (var i = 0; i < tier.ayni; i++) spawnFruit();
+    goalCountEl.textContent = eaten + "/" + tier.hedef;
+    roundStart = performance.now();
+    playing = true;
+  }
+
+  function eatFruit(f, idx) {
+    fruits.splice(idx, 1);
+    var cov = window.KemalKamera.cover(cam.video, W, H);
+    burst(cov.sx(f.x), cov.sy(f.y), "😋", 6);
+    soundMunch();
+    stars++;
+    eaten++;
+    starCountEl.textContent = stars;
+    goalCountEl.textContent = Math.min(eaten, tier.hedef) + "/" + tier.hedef;
+    if (eaten >= tier.hedef) {
+      winRound();
+    } else if (fruits.length < tier.ayni) {
+      setTimeout(function () {
+        if (playing && fruits.length < tier.ayni) spawnFruit();
+      }, 600);
+    }
+  }
+
+  function winRound() {
+    playing = false;
+    var sure = (performance.now() - roundStart) / 1000;
+    adapt.record({
+      hard: kacan >= 5,
+      smooth: kacan <= 1,
+      kacan: kacan,
+      sure: Math.round(sure),
+      hedef: tier.hedef
+    });
+    soundWin();
+    celebrateEl.classList.add("show");
+    throwConfetti();
+    setTimeout(function () {
+      celebrateEl.classList.remove("show");
+      newRound();
+    }, 2600);
+  }
+
+  function burst(x, y, emoji, n) {
+    for (var i = 0; i < n; i++) {
+      particles.push({
+        x: x, y: y,
+        vx: (Math.random() - 0.5) * 400,
+        vy: -Math.random() * 350 - 80,
+        life: 0.9,
+        emoji: emoji
+      });
+    }
+  }
+
+  var CONFETTI = ["🎉","⭐","🎈","✨","💛","🧡"];
+  function throwConfetti() {
+    for (var i = 0; i < 26; i++) {
+      var piece = document.createElement("div");
+      piece.className = "confetti";
+      piece.textContent = CONFETTI[Math.floor(Math.random() * CONFETTI.length)];
+      piece.style.left = Math.random() * 100 + "vw";
+      piece.style.animationDuration = 1.6 + Math.random() * 1.6 + "s";
+      piece.style.animationDelay = Math.random() * 0.5 + "s";
+      document.body.appendChild(piece);
+      (function (p) { setTimeout(function () { p.remove(); }, 4000); })(piece);
+    }
+  }
+
+  function findScore(cats, name) {
+    for (var i = 0; i < cats.length; i++) {
+      if (cats[i].categoryName === name) return cats[i].score;
+    }
+    return 0;
+  }
+
+  function detect(now) {
+    if (!detector || now - lastDetect < detectInterval) return;
+    lastDetect = now;
+    var t0 = performance.now();
+    var res;
+    try { res = detector.detectForVideo(cam.video, now); }
+    catch (e) { return; }
+    var took = performance.now() - t0;
+    detectDur += (took - detectDur) * 0.1;
+    detectInterval = detectDur > 45 ? 125 : 42;
+
+    if (res && res.faceLandmarks && res.faceLandmarks.length) {
+      // Dudak orta noktaları: 13 üst, 14 alt (aynalanır)
+      var up = res.faceLandmarks[0][13];
+      var lo = res.faceLandmarks[0][14];
+      mouth = { x: 1 - (up.x + lo.x) / 2, y: (up.y + lo.y) / 2 };
+      if (res.faceBlendshapes && res.faceBlendshapes.length) {
+        var cats = res.faceBlendshapes[0].categories;
+        jawScore = findScore(cats, "jawOpen");
+        smileScore = findScore(cats, "mouthSmileLeft") + findScore(cats, "mouthSmileRight");
+      }
+    } else {
+      mouth = null;
+      jawScore = 0;
+      smileScore = 0;
+    }
+
+    // Histerezis: açık kabulü eşikte, kapanış daha aşağıda — titremesin
+    if (!mouthOpen && jawScore > tier.agiz) mouthOpen = true;
+    else if (mouthOpen && jawScore < tier.agiz * 0.6) mouthOpen = false;
+  }
+
+  function update(dt, now) {
+    if (!playing) return;
+    detect(now);
+    if (bonusCooldown > 0) bonusCooldown -= dt;
+
+    var cov = window.KemalKamera.cover(cam.video, W, H);
+    var dh = cov.sy(1) - cov.sy(0);
+    var fallV = tier.hiz * H / dh;            // video-norm y birimi / sn
+    var catchR = 0.09;                        // yakalama yarıçapı (y biriminde)
+    var fruitNear = false;
+
+    for (var i = fruits.length - 1; i >= 0; i--) {
+      var f = fruits[i];
+
+      if (f.missed) {
+        // Kaçan meyve balonla yukarı süzülür, sonra yeniden düşer
+        f.y -= fallV * 0.7 * dt;
+        if (f.y <= -0.05) { f.missed = false; f.x = 0.15 + Math.random() * 0.7; }
+      } else {
+        f.y += fallV * dt;
+        if (tier.nisan === "oto" && mouth) {
+          // Meyve ağza doğru süzülür: sadece ağzı zamanında açmak yeter
+          f.x += (mouth.x - f.x) * Math.min(1, dt * 1.5);
+        }
+        if (mouth) {
+          var aspect = cam.video.videoWidth ? cam.video.videoWidth / cam.video.videoHeight : 16 / 9;
+          var dx = (f.x - mouth.x) * aspect;
+          var dy = f.y - mouth.y;
+          var d2 = dx * dx + dy * dy;
+          if (d2 < catchR * catchR * 4) fruitNear = true;
+          if (mouthOpen && d2 < catchR * catchR) { eatFruit(f, i); continue; }
+        }
+        if (f.y > 0.97) {
+          // Yumuşak sekme: ceza yok, meyve balonlanıp geri gelir
+          f.missed = true;
+          kacan++;
+          soundBoing();
+        }
+      }
+    }
+
+    // En üst kademe sürprizi: meyve yokken kocaman gülümseme bonus yıldız
+    if (adapt.level >= TIERS.length - 1 && smileScore > 1.0 && !fruitNear && bonusCooldown <= 0 && mouth) {
+      bonusCooldown = 5;
+      stars++;
+      starCountEl.textContent = stars;
+      soundBonus();
+      burst(cov.sx(mouth.x), cov.sy(mouth.y) - 60, "🌈", 5);
+    }
+
+    particles.forEach(function (p) {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 900 * dt;
+      p.life -= dt;
+    });
+    particles = particles.filter(function (p) { return p.life > 0; });
+  }
+
+  function draw(now) {
+    ctx.clearRect(0, 0, W, H);
+
+    if (!playing) {
+      if (!detector && cam) {
+        var b = 1 + Math.sin(now / 250) * 0.1;
+        ctx.font = Math.min(W, H) * 0.2 * b + "px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("🤖", W / 2, H / 2);
+        ctx.font = Math.min(W, H) * 0.08 + "px sans-serif";
+        ctx.fillText("💭", W / 2 + Math.min(W, H) * 0.16, H / 2 - Math.min(W, H) * 0.14);
+      }
+      return;
+    }
+
+    var cov = window.KemalKamera.cover(cam.video, W, H);
+    var em = Math.min(W, H);
+
+    // Ağız halkası: algılama çalışıyor geri bildirimi; açıkken parlar
+    if (mouth) {
+      var mx = cov.sx(mouth.x), my = cov.sy(mouth.y);
+      ctx.lineWidth = em * 0.012;
+      ctx.strokeStyle = mouthOpen ? "rgba(255,213,79,.95)" : "rgba(255,255,255,.5)";
+      ctx.shadowColor = mouthOpen ? "#ffd54f" : "transparent";
+      ctx.shadowBlur = mouthOpen ? 18 : 0;
+      ctx.beginPath();
+      ctx.arc(mx, my, em * (mouthOpen ? 0.075 : 0.055), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else {
+      // Yüz kadrajda değil: nazik ipucu
+      ctx.font = em * 0.1 + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("🔙👣", W / 2, H * 0.88);
+    }
+
+    // Meyveler
+    fruits.forEach(function (f) {
+      var x = cov.sx(f.x), y = cov.sy(f.y);
+      var wob = Math.sin(now / 250 + f.x * 20) * 6;
+      ctx.font = em * 0.11 + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      if (f.missed) {
+        ctx.fillText("🎈", x + wob, y - em * 0.07);
+        ctx.fillText(f.emoji, x + wob, y);
+      } else {
+        ctx.fillText(f.emoji, x + wob, y);
+      }
+    });
+
+    particles.forEach(function (p) {
+      ctx.globalAlpha = Math.max(p.life, 0);
+      ctx.font = em * 0.06 + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(p.emoji, p.x, p.y);
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  var lastTime = 0;
+  function loop(t) {
+    var dt = Math.min((t - lastTime) / 1000, 0.05);
+    lastTime = t;
+    update(dt, t);
+    draw(t);
+    requestAnimationFrame(loop);
+  }
+
+  // --- Başlat: kamera → ısınma → model → oyun ---
+  window.KemalKamera.start().then(function (c) {
+    cam = c;
+    motion = window.KemalKamera.createMotion(cam.video);
+    var modelP = window.KemalKamera.loadFace();
+    modelP.catch(function () {});
+    return window.KemalKamera.warmup(cam.video, motion, { beep: beep }).then(function () {
+      requestAnimationFrame(function (t) { lastTime = t; requestAnimationFrame(loop); });
+      return modelP;
+    });
+  }).then(function (d) {
+    detector = d;
+    newRound();
+  }).catch(function () {
+    window.KemalKamera.sleep({ onRetry: function () { location.reload(); } });
+  });
+
+  // Test kancası (tools/smoke-kamera.mjs kullanır)
+  window.__kameraDebug = {
+    skipWarmup: function () { if (window.KemalKamera._skipWarmup) window.KemalKamera._skipWarmup(); },
+    motionGlobal: function () { return motion ? motion.global : -1; },
+    detectorReady: function () { return !!detector; },
+    playing: function () { return playing; },
+    fruits: function () { return fruits.length; },
+    stars: function () { return stars; },
+    forceEat: function () { if (playing && fruits.length) eatFruit(fruits[0], 0); }
+  };
+})();
+</script>
+</body>
+</html>

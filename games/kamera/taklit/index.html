@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Hareket Taklidi 🤸</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    touch-action: manipulation;
+    font-family: "Comic Sans MS", "Chalkboard SE", "Segoe UI", sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    background: #222;
+  }
+  #game { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 1; }
+  .home-btn {
+    position: fixed;
+    top: 2vh; left: 2vh;
+    text-decoration: none;
+    font-size: clamp(28px, 6vh, 44px);
+    background: #fff;
+    border-radius: 50%;
+    width: clamp(52px, 11vh, 76px);
+    height: clamp(52px, 11vh, 76px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 5px 0 rgba(0,0,0,.15);
+    z-index: 5;
+  }
+  .home-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.15); }
+  .badge {
+    position: fixed;
+    top: 2vh;
+    font-size: clamp(22px, 5vh, 40px);
+    background: rgba(255,255,255,.9);
+    border-radius: 20px;
+    padding: 1vh 2.5vw;
+    box-shadow: 0 5px 0 rgba(0,0,0,.12);
+    z-index: 5;
+    text-align: center;
+  }
+  #stars { right: 2vh; }
+  #round { right: 50%; transform: translateX(50%); }
+  #celebrate {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,.55);
+    z-index: 10;
+  }
+  #celebrate.show { display: flex; }
+  #celebrate .msg {
+    font-size: clamp(60px, 24vh, 160px);
+    animation: bounce .6s infinite alternate;
+  }
+  @keyframes bounce { from { transform: scale(1); } to { transform: scale(1.25); } }
+  .confetti {
+    position: fixed;
+    top: -5vh;
+    font-size: clamp(20px, 5vh, 36px);
+    animation: fall linear forwards;
+    z-index: 11;
+    pointer-events: none;
+  }
+  @keyframes fall { to { transform: translateY(115vh) rotate(720deg); } }
+</style>
+</head>
+<body>
+  <a class="home-btn" href="../index.html">🏠</a>
+  <div class="badge" id="round">🤸 <span id="round-count">0</span>/5</div>
+  <div class="badge" id="stars">⭐ <span id="star-count">0</span></div>
+  <canvas id="game"></canvas>
+  <div id="celebrate"><div class="msg">🎉</div></div>
+
+<script src="../../shared/adapt.js"></script>
+<script src="../../shared/kamera.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  if (!window.KemalAdapt) {
+    // Paylaşılan modül yüklenemezse basit yedek (kalıcı kayıt tutmaz)
+    window.KemalAdapt = { create: function (g, o) {
+      var lvl = o.start || 0;
+      var streak = 0;
+      return { get level() { return lvl; }, record: function (r) {
+        if (r.hard) { lvl = Math.max(o.min, lvl - 1); streak = 0; }
+        else if (r.smooth && ++streak >= (o.streak || 2)) { lvl = Math.min(o.max, lvl + 1); streak = 0; }
+        else if (!r.smooth) streak = 0;
+        return lvl;
+      } };
+    } };
+  }
+  if (!window.KemalKamera) {
+    document.body.innerHTML =
+      '<a class="home-btn" href="../index.html">🏠</a>' +
+      '<div style="height:100%;display:flex;align-items:center;justify-content:center;font-size:20vh">😴</div>';
+    return;
+  }
+
+  // Pozlar: check(L, tol) → eşleşti mi? L = adlandırılmış AYNALI noktalar
+  // (KemalKamera.landmarks.named), tol = tolerans çarpanı (ipucu açılınca 1.3).
+  // gerek = görünür olması şart noktalar; havuz = hangi kademeden itibaren.
+  // fig = hedef çöp adamın eklem koordinatları (1x1 kutuda, y aşağı).
+  var POSES = /*POSES_START*/[
+    { id: "eller-yukari", emoji: "🙌", havuz: 0,
+      gerek: ["nose", "lWrist", "rWrist"],
+      check: function (L, tol) {
+        var pay = 0.04 * tol;
+        return L.lWrist.y < L.nose.y + pay && L.rWrist.y < L.nose.y + pay;
+      },
+      fig: { head: [0.5, 0.18], neck: [0.5, 0.30], lSho: [0.38, 0.32], rSho: [0.62, 0.32],
+             lElb: [0.32, 0.20], rElb: [0.68, 0.20], lWri: [0.28, 0.07], rWri: [0.72, 0.07],
+             hipC: [0.5, 0.55], lHip: [0.43, 0.55], rHip: [0.57, 0.55],
+             lKne: [0.42, 0.72], rKne: [0.58, 0.72], lAnk: [0.41, 0.89], rAnk: [0.59, 0.89] } },
+    { id: "ucak", emoji: "✈️", havuz: 0,
+      gerek: ["lShoulder", "rShoulder", "lWrist", "rWrist"],
+      check: function (L, tol) {
+        var pay = 0.09 * tol;
+        var duz = Math.abs(L.lWrist.y - L.lShoulder.y) < pay && Math.abs(L.rWrist.y - L.rShoulder.y) < pay;
+        var acik = Math.abs(L.lWrist.x - L.lShoulder.x) > 0.10 && Math.abs(L.rWrist.x - L.rShoulder.x) > 0.10;
+        return duz && acik;
+      },
+      fig: { head: [0.5, 0.18], neck: [0.5, 0.30], lSho: [0.38, 0.32], rSho: [0.62, 0.32],
+             lElb: [0.24, 0.32], rElb: [0.76, 0.32], lWri: [0.09, 0.32], rWri: [0.91, 0.32],
+             hipC: [0.5, 0.55], lHip: [0.43, 0.55], rHip: [0.57, 0.55],
+             lKne: [0.42, 0.72], rKne: [0.58, 0.72], lAnk: [0.41, 0.89], rAnk: [0.59, 0.89] } },
+    { id: "tek-el", emoji: "🙋", havuz: 0,
+      gerek: ["nose", "lWrist", "rWrist", "lShoulder", "rShoulder"],
+      check: function (L, tol) {
+        var pay = 0.04 * tol;
+        var solYukari = L.lWrist.y < L.nose.y + pay && L.rWrist.y > L.rShoulder.y - pay;
+        var sagYukari = L.rWrist.y < L.nose.y + pay && L.lWrist.y > L.lShoulder.y - pay;
+        return solYukari || sagYukari;
+      },
+      fig: { head: [0.5, 0.18], neck: [0.5, 0.30], lSho: [0.38, 0.32], rSho: [0.62, 0.32],
+             lElb: [0.33, 0.20], rElb: [0.66, 0.43], lWri: [0.30, 0.07], rWri: [0.68, 0.53],
+             hipC: [0.5, 0.55], lHip: [0.43, 0.55], rHip: [0.57, 0.55],
+             lKne: [0.42, 0.72], rKne: [0.58, 0.72], lAnk: [0.41, 0.89], rAnk: [0.59, 0.89] } },
+    { id: "eller-basta", emoji: "🙆", havuz: 1,
+      gerek: ["nose", "lWrist", "rWrist"],
+      check: function (L, tol) {
+        var d = window.KemalKamera.landmarks.dist;
+        var pay = 0.20 * tol;
+        return d(L.lWrist, L.nose) < pay && d(L.rWrist, L.nose) < pay;
+      },
+      fig: { head: [0.5, 0.20], neck: [0.5, 0.32], lSho: [0.38, 0.34], rSho: [0.62, 0.34],
+             lElb: [0.24, 0.26], rElb: [0.76, 0.26], lWri: [0.42, 0.10], rWri: [0.58, 0.10],
+             hipC: [0.5, 0.56], lHip: [0.43, 0.56], rHip: [0.57, 0.56],
+             lKne: [0.42, 0.73], rKne: [0.58, 0.73], lAnk: [0.41, 0.89], rAnk: [0.59, 0.89] } },
+    { id: "comelme", emoji: "🐸", havuz: 1,
+      gerek: ["lHip", "rHip", "lKnee", "rKnee"],
+      check: function (L, tol) {
+        var pay = 0.12 * tol;
+        return Math.abs(L.lHip.y - L.lKnee.y) < pay && Math.abs(L.rHip.y - L.rKnee.y) < pay;
+      },
+      fig: { head: [0.5, 0.34], neck: [0.5, 0.44], lSho: [0.39, 0.46], rSho: [0.61, 0.46],
+             lElb: [0.28, 0.54], rElb: [0.72, 0.54], lWri: [0.22, 0.62], rWri: [0.78, 0.62],
+             hipC: [0.5, 0.68], lHip: [0.44, 0.68], rHip: [0.56, 0.68],
+             lKne: [0.32, 0.66], rKne: [0.68, 0.66], lAnk: [0.34, 0.89], rAnk: [0.66, 0.89] } },
+    { id: "tek-ayak", emoji: "🦩", havuz: 2,
+      gerek: ["lKnee", "rKnee", "lAnkle", "rAnkle"],
+      check: function (L, tol) {
+        var pay = 0.03 * tol;
+        return L.lAnkle.y < L.rKnee.y + pay || L.rAnkle.y < L.lKnee.y + pay;
+      },
+      fig: { head: [0.5, 0.18], neck: [0.5, 0.30], lSho: [0.38, 0.32], rSho: [0.62, 0.32],
+             lElb: [0.26, 0.38], rElb: [0.74, 0.38], lWri: [0.18, 0.30], rWri: [0.82, 0.30],
+             hipC: [0.5, 0.55], lHip: [0.43, 0.55], rHip: [0.57, 0.55],
+             lKne: [0.42, 0.68], rKne: [0.58, 0.72], lAnk: [0.56, 0.70], rAnk: [0.59, 0.89] } },
+    { id: "egil-yan", emoji: "🌴", havuz: 2,
+      gerek: ["lShoulder", "rShoulder"],
+      check: function (L, tol) {
+        return Math.abs(L.lShoulder.y - L.rShoulder.y) > 0.09 / tol;
+      },
+      fig: { head: [0.34, 0.22], neck: [0.40, 0.32], lSho: [0.30, 0.36], rSho: [0.52, 0.30],
+             lElb: [0.20, 0.24], rElb: [0.62, 0.20], lWri: [0.13, 0.13], rWri: [0.72, 0.11],
+             hipC: [0.5, 0.56], lHip: [0.44, 0.56], rHip: [0.56, 0.56],
+             lKne: [0.43, 0.73], rKne: [0.58, 0.73], lAnk: [0.42, 0.89], rAnk: [0.59, 0.89] } }
+  ]/*POSES_END*/;
+
+  // Kademeler: havuz = poz havuzu derinliği, tutma = pozu tutma süresi (ms)
+  var TIERS = /*TIERS_START*/[
+    {"havuz":0,"tutma":600},
+    {"havuz":1,"tutma":900},
+    {"havuz":1,"tutma":1200},
+    {"havuz":2,"tutma":1200},
+    {"havuz":2,"tutma":1500}
+  ]/*TIERS_END*/;
+
+  var POSES_PER_ROUND = 5;
+  var adapt = window.KemalAdapt.create("kamera-taklit", { min: 0, max: TIERS.length - 1, start: 0, streak: 2 });
+
+  var canvas = document.getElementById("game");
+  var ctx = canvas.getContext("2d");
+  var starCountEl = document.getElementById("star-count");
+  var roundCountEl = document.getElementById("round-count");
+  var celebrateEl = document.getElementById("celebrate");
+
+  var W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // --- Sesler ---
+  var audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  }
+  function beep(freq, dur, type, delay) {
+    if (!audioCtx) return;
+    var t = audioCtx.currentTime + (delay || 0);
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = type || "sine";
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.22, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + dur);
+  }
+  function soundMatch() { beep(660, 0.15, "sine"); beep(880, 0.2, "sine", 0.12); beep(1100, 0.25, "sine", 0.24); }
+  function soundWin()   { [523, 659, 784, 1047].forEach(function (f, i) { beep(f, 0.25, "sine", i * 0.15); }); }
+  document.addEventListener("pointerdown", ensureAudio);
+
+  // Arka planda geçen süre zorluk ölçümüne sayılmasın
+  var hiddenAt = 0;
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) hiddenAt = performance.now();
+    else if (hiddenAt) { poseStart += performance.now() - hiddenAt; hiddenAt = 0; }
+  });
+
+  // --- Oyun durumu ---
+  var cam = null, motion = null, detector = null;
+  var playing = false;
+  var tier = TIERS[adapt.level];
+  var stars = 0;
+  var posesDone = 0;
+  var target = null;            // aktif POSES girdisi
+  var lastTarget = null;
+  var matchProgress = 0;        // 0..1 tutma halkası
+  var poseStart = 0;
+  var ipucu = 0;                // bu turda ipucu/otomatik geçiş sayısı
+  var sureler = [];             // poz başına saniye
+  var L = null;                 // son algılanan adlandırılmış noktalar
+  var outOfFrame = false;
+  var lastDetect = 0;
+  var detectInterval = 42;      // ~24 Hz; yavaş cihazda otomatik seyrekleşir
+  var detectDur = 0;            // ölçülen ortalama algılama süresi
+
+  function pickTarget() {
+    var pool = POSES.filter(function (p) { return p.havuz <= tier.havuz && p !== lastTarget; });
+    target = pool[Math.floor(Math.random() * pool.length)];
+    lastTarget = target;
+    matchProgress = 0;
+    poseStart = performance.now();
+  }
+
+  function newRound() {
+    tier = TIERS[adapt.level];
+    posesDone = 0;
+    ipucu = 0;
+    sureler = [];
+    roundCountEl.textContent = "0";
+    pickTarget();
+    playing = true;
+  }
+
+  function poseSuccess(auto) {
+    sureler.push((performance.now() - poseStart) / 1000);
+    if (auto) ipucu++;
+    stars++;
+    posesDone++;
+    starCountEl.textContent = stars;
+    roundCountEl.textContent = posesDone;
+    soundMatch();
+    burstConfettiSmall();
+    if (posesDone >= POSES_PER_ROUND) winRound();
+    else pickTarget();
+  }
+
+  function winRound() {
+    playing = false;
+    var ortSure = sureler.reduce(function (a, b) { return a + b; }, 0) / Math.max(1, sureler.length);
+    adapt.record({
+      hard: ortSure > 12 || ipucu > 0,
+      smooth: ortSure < 6 && ipucu === 0,
+      ortSure: Math.round(ortSure * 10) / 10,
+      ipucu: ipucu,
+      havuz: tier.havuz
+    });
+    soundWin();
+    celebrateEl.classList.add("show");
+    throwConfetti();
+    setTimeout(function () {
+      celebrateEl.classList.remove("show");
+      newRound();
+    }, 2600);
+  }
+
+  var CONFETTI = ["🎉","⭐","🎈","✨","💛","🧡"];
+  function throwConfetti() {
+    for (var i = 0; i < 26; i++) {
+      var piece = document.createElement("div");
+      piece.className = "confetti";
+      piece.textContent = CONFETTI[Math.floor(Math.random() * CONFETTI.length)];
+      piece.style.left = Math.random() * 100 + "vw";
+      piece.style.animationDuration = 1.6 + Math.random() * 1.6 + "s";
+      piece.style.animationDelay = Math.random() * 0.5 + "s";
+      document.body.appendChild(piece);
+      (function (p) { setTimeout(function () { p.remove(); }, 4000); })(piece);
+    }
+  }
+  function burstConfettiSmall() {
+    for (var i = 0; i < 8; i++) {
+      var piece = document.createElement("div");
+      piece.className = "confetti";
+      piece.textContent = "✨";
+      piece.style.left = 30 + Math.random() * 40 + "vw";
+      piece.style.animationDuration = 1 + Math.random() + "s";
+      document.body.appendChild(piece);
+      (function (p) { setTimeout(function () { p.remove(); }, 2200); })(piece);
+    }
+  }
+
+  function detect(now) {
+    if (!detector || now - lastDetect < detectInterval) return;
+    lastDetect = now;
+    var t0 = performance.now();
+    var res;
+    try { res = detector.detectForVideo(cam.video, now); }
+    catch (e) { return; }
+    var took = performance.now() - t0;
+    detectDur += (took - detectDur) * 0.1;
+    // Yavaş cihazda algılamayı seyrelt, oyun akıcı kalsın
+    detectInterval = detectDur > 45 ? 125 : 42;
+
+    if (res && res.landmarks && res.landmarks.length) {
+      L = window.KemalKamera.landmarks.named(res.landmarks[0]);
+    } else {
+      L = null;
+    }
+  }
+
+  function update(dt, now) {
+    if (!playing || !target) return;
+    detect(now);
+
+    var bekleme = (now - poseStart) / 1000;
+    // Merhamet: 20 sn olmadıysa tolerans genişler, 35 sn'de kutlanır
+    var tol = bekleme > 20 ? 1.3 : 1;
+    if (bekleme > 35) { poseSuccess(true); return; }
+
+    outOfFrame = false;
+    var matched = false;
+    if (L) {
+      for (var i = 0; i < target.gerek.length; i++) {
+        if (L[target.gerek[i]].v < 0.5) { outOfFrame = true; break; }
+      }
+      if (!outOfFrame) matched = target.check(L, tol);
+    }
+
+    if (matched) {
+      matchProgress += dt * 1000 / tier.tutma;
+      if (matchProgress >= 1) poseSuccess(false);
+    } else {
+      // Halka asla aniden sıfırlanmaz — cesaret kırılmasın
+      matchProgress = Math.max(0, matchProgress - dt * 0.6);
+    }
+  }
+
+  // --- Çizim ---
+  function drawStick(fig, x, y, size, color, pulse) {
+    var s = size * (pulse ? 1 + Math.sin(performance.now() / 300) * 0.04 : 1);
+    function P(name) { return [x + fig[name][0] * s, y + fig[name][1] * s]; }
+    function line(a, b) {
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = s * 0.055;
+    ctx.lineCap = "round";
+    var neck = P("neck"), hipC = P("hipC");
+    line(neck, hipC);
+    line(P("lSho"), P("rSho"));
+    line(P("lSho"), P("lElb")); line(P("lElb"), P("lWri"));
+    line(P("rSho"), P("rElb")); line(P("rElb"), P("rWri"));
+    line(P("lHip"), P("rHip"));
+    line(P("lHip"), P("lKne")); line(P("lKne"), P("lAnk"));
+    line(P("rHip"), P("rKne")); line(P("rKne"), P("rAnk"));
+    var head = P("head");
+    ctx.fillStyle = "#ffe0b2";
+    ctx.beginPath();
+    ctx.arc(head[0], head[1], s * 0.09, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = s * 0.12 + "px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("🙂", head[0], head[1]);
+  }
+
+  function drawSkeleton() {
+    if (!L) return;
+    var cov = window.KemalKamera.cover(cam.video, W, H);
+    function pt(p) { return [cov.sx(p.x), cov.sy(p.y)]; }
+    function seg(a, b) {
+      if (a.v < 0.5 || b.v < 0.5) return;
+      var pa = pt(a), pb = pt(b);
+      ctx.beginPath();
+      ctx.moveTo(pa[0], pa[1]);
+      ctx.lineTo(pb[0], pb[1]);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(255,255,255,.85)";
+    ctx.lineWidth = Math.min(W, H) * 0.022;
+    ctx.lineCap = "round";
+    ctx.shadowColor = "rgba(0,0,0,.4)";
+    ctx.shadowBlur = 8;
+    seg(L.lShoulder, L.rShoulder);
+    seg(L.lShoulder, L.lElbow); seg(L.lElbow, L.lWrist);
+    seg(L.rShoulder, L.rElbow); seg(L.rElbow, L.rWrist);
+    seg(L.lHip, L.rHip);
+    seg(L.lShoulder, L.lHip); seg(L.rShoulder, L.rHip);
+    seg(L.lHip, L.lKnee); seg(L.lKnee, L.lAnkle);
+    seg(L.rHip, L.rKnee); seg(L.rKnee, L.rAnkle);
+    ctx.shadowBlur = 0;
+    // Eklem noktaları
+    ctx.fillStyle = "#ffa726";
+    ["lShoulder","rShoulder","lElbow","rElbow","lWrist","rWrist","lHip","rHip","lKnee","rKnee","lAnkle","rAnkle"]
+      .forEach(function (n) {
+        var p = L[n];
+        if (p.v < 0.5) return;
+        var q = pt(p);
+        ctx.beginPath();
+        ctx.arc(q[0], q[1], Math.min(W, H) * 0.014, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    // Baş: burnun üstünde gülen yüz
+    if (L.nose.v >= 0.5) {
+      var np = pt(L.nose);
+      ctx.font = Math.min(W, H) * 0.09 + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("😊", np[0], np[1]);
+    }
+  }
+
+  function draw(now) {
+    ctx.clearRect(0, 0, W, H);
+
+    if (!playing) {
+      if (!detector && cam) {
+        // Robot düşünüyor: model yükleniyor
+        var b = 1 + Math.sin(now / 250) * 0.1;
+        ctx.font = Math.min(W, H) * 0.2 * b + "px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("🤖", W / 2, H / 2);
+        ctx.font = Math.min(W, H) * 0.08 + "px sans-serif";
+        ctx.fillText("💭", W / 2 + Math.min(W, H) * 0.16, H / 2 - Math.min(W, H) * 0.14);
+      }
+      return;
+    }
+
+    drawSkeleton();
+
+    // Hedef poz kartı (sol tarafta)
+    var cardW = Math.min(W * 0.24, H * 0.5);
+    var cardH = cardW * 1.25;
+    var cx0 = W * 0.02, cy0 = (H - cardH) / 2;
+    ctx.fillStyle = "rgba(255,255,255,.88)";
+    roundRectPath(cx0, cy0, cardW, cardH, 24);
+    ctx.fill();
+    ctx.strokeStyle = "#ffa726";
+    ctx.lineWidth = 5;
+    roundRectPath(cx0, cy0, cardW, cardH, 24);
+    ctx.stroke();
+    var bekleme = (performance.now() - poseStart) / 1000;
+    drawStick(target.fig, cx0 + cardW * 0.1, cy0 + cardH * 0.06, cardW * 0.8, "#5c6bc0", bekleme > 20);
+    ctx.font = cardW * 0.22 + "px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(target.emoji, cx0 + cardW / 2, cy0 + cardH * 0.92);
+
+    // Tutma halkası (ekran ortasının üstünde)
+    if (matchProgress > 0.01) {
+      var r = Math.min(W, H) * 0.1;
+      var rx = W * 0.62, ry = H * 0.18;
+      ctx.lineWidth = Math.min(W, H) * 0.03;
+      ctx.strokeStyle = "rgba(255,255,255,.5)";
+      ctx.beginPath();
+      ctx.arc(rx, ry, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = "#66bb6a";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.arc(rx, ry, r, -Math.PI / 2, -Math.PI / 2 + matchProgress * Math.PI * 2);
+      ctx.stroke();
+      ctx.font = r + "px sans-serif";
+      ctx.fillText("👍", rx, ry);
+    }
+
+    // Kadraj dışı: geri çekil ipucu
+    if (outOfFrame) {
+      var em = Math.min(W, H) * 0.1;
+      ctx.font = em + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("🔙👣", W / 2, H * 0.88);
+    }
+  }
+
+  function roundRectPath(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  var lastTime = 0;
+  function loop(t) {
+    var dt = Math.min((t - lastTime) / 1000, 0.05);
+    lastTime = t;
+    update(dt, t);
+    draw(t);
+    requestAnimationFrame(loop);
+  }
+
+  // --- Başlat: kamera → ısınma → model → oyun ---
+  window.KemalKamera.start().then(function (c) {
+    cam = c;
+    motion = window.KemalKamera.createMotion(cam.video);
+    // Model, ısınma ekranı sürerken arka planda yüklensin
+    var modelP = window.KemalKamera.loadPose();
+    modelP.catch(function () {});
+    return window.KemalKamera.warmup(cam.video, motion, { beep: beep }).then(function () {
+      requestAnimationFrame(function (t) { lastTime = t; requestAnimationFrame(loop); });
+      return modelP;
+    });
+  }).then(function (d) {
+    detector = d;
+    newRound();
+  }).catch(function () {
+    // Model yüklenemedi: robot uykuda — ML'siz oyunlara kısayol
+    window.KemalKamera.sleep({ onRetry: function () { location.reload(); } });
+  });
+
+  // Test kancası (tools/smoke-kamera.mjs kullanır)
+  window.__kameraDebug = {
+    skipWarmup: function () { if (window.KemalKamera._skipWarmup) window.KemalKamera._skipWarmup(); },
+    motionGlobal: function () { return motion ? motion.global : -1; },
+    detectorReady: function () { return !!detector; },
+    playing: function () { return playing; },
+    poseId: function () { return target ? target.id : null; },
+    stars: function () { return stars; },
+    forceMatch: function () { if (playing) poseSuccess(false); }
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Dans ve Don 🕺</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    touch-action: manipulation;
+    font-family: "Comic Sans MS", "Chalkboard SE", "Segoe UI", sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    background: #222;
+  }
+  #game { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 1; }
+  .home-btn {
+    position: fixed;
+    top: 2vh; left: 2vh;
+    text-decoration: none;
+    font-size: clamp(28px, 6vh, 44px);
+    background: #fff;
+    border-radius: 50%;
+    width: clamp(52px, 11vh, 76px);
+    height: clamp(52px, 11vh, 76px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 5px 0 rgba(0,0,0,.15);
+    z-index: 5;
+  }
+  .home-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.15); }
+  .badge {
+    position: fixed;
+    top: 2vh;
+    font-size: clamp(22px, 5vh, 40px);
+    background: rgba(255,255,255,.9);
+    border-radius: 20px;
+    padding: 1vh 2.5vw;
+    box-shadow: 0 5px 0 rgba(0,0,0,.12);
+    z-index: 5;
+    text-align: center;
+  }
+  #stars { right: 2vh; }
+  #round { right: 50%; transform: translateX(50%); }
+  #celebrate {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,.55);
+    z-index: 10;
+  }
+  #celebrate.show { display: flex; }
+  #celebrate .msg {
+    font-size: clamp(60px, 24vh, 160px);
+    animation: bounce .6s infinite alternate;
+  }
+  @keyframes bounce { from { transform: scale(1); } to { transform: scale(1.25); } }
+  .confetti {
+    position: fixed;
+    top: -5vh;
+    font-size: clamp(20px, 5vh, 36px);
+    animation: fall linear forwards;
+    z-index: 11;
+    pointer-events: none;
+  }
+  @keyframes fall { to { transform: translateY(115vh) rotate(720deg); } }
+</style>
+</head>
+<body>
+  <a class="home-btn" href="../index.html">🏠</a>
+  <div class="badge" id="round">❄️ <span id="round-count">0</span>/5</div>
+  <div class="badge" id="stars">⭐ <span id="star-count">0</span></div>
+  <canvas id="game"></canvas>
+  <div id="celebrate"><div class="msg">🎉</div></div>
+
+<script src="../../shared/adapt.js"></script>
+<script src="../../shared/kamera.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  if (!window.KemalAdapt) {
+    // Paylaşılan modül yüklenemezse basit yedek (kalıcı kayıt tutmaz)
+    window.KemalAdapt = { create: function (g, o) {
+      var lvl = o.start || 0;
+      var streak = 0;
+      return { get level() { return lvl; }, record: function (r) {
+        if (r.hard) { lvl = Math.max(o.min, lvl - 1); streak = 0; }
+        else if (r.smooth && ++streak >= (o.streak || 2)) { lvl = Math.min(o.max, lvl + 1); streak = 0; }
+        else if (!r.smooth) streak = 0;
+        return lvl;
+      } };
+    } };
+  }
+  if (!window.KemalKamera) {
+    document.body.innerHTML =
+      '<a class="home-btn" href="../index.html">🏠</a>' +
+      '<div style="height:100%;display:flex;align-items:center;justify-content:center;font-size:20vh">😴</div>';
+    return;
+  }
+
+  // Kademeler: donma = kıpırdamadan durulacak süre (sn), esik = donarken izin
+  // verilen hareket, dansMin/Max = müzik süresi aralığı (sn), bpm = tempo
+  var TIERS = /*TIERS_START*/[
+    {"donma":2.0,"esik":0.20,"dansMin":6,"dansMax":10,"bpm":100},
+    {"donma":2.5,"esik":0.16,"dansMin":6,"dansMax":11,"bpm":110},
+    {"donma":3.0,"esik":0.13,"dansMin":5,"dansMax":12,"bpm":120},
+    {"donma":3.5,"esik":0.11,"dansMin":5,"dansMax":12,"bpm":130},
+    {"donma":4.0,"esik":0.10,"dansMin":4,"dansMax":13,"bpm":140}
+  ]/*TIERS_END*/;
+
+  var FREEZES_PER_ROUND = 5;
+  var adapt = window.KemalAdapt.create("kamera-dans", { min: 0, max: TIERS.length - 1, start: 0, streak: 2 });
+
+  var canvas = document.getElementById("game");
+  var ctx = canvas.getContext("2d");
+  var starCountEl = document.getElementById("star-count");
+  var roundCountEl = document.getElementById("round-count");
+  var celebrateEl = document.getElementById("celebrate");
+
+  var W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // --- Sesler ---
+  var audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  }
+  function beep(freq, dur, type, delay) {
+    if (!audioCtx) return;
+    beepAt(freq, dur, type, audioCtx.currentTime + (delay || 0), 0.22);
+  }
+  // Müzik zamanlayıcısı mutlak zamana nota yerleştirir
+  function beepAt(freq, dur, type, when, vol) {
+    if (!audioCtx) return;
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = type || "sine";
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol || 0.22, when);
+    gain.gain.exponentialRampToValueAtTime(0.001, when + dur);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(when);
+    osc.stop(when + dur);
+  }
+  function soundDing()   { beep(880, 0.15, "sine"); beep(1320, 0.3, "sine", 0.1); }
+  function soundGiggle() { beep(600, 0.07, "triangle"); beep(760, 0.07, "triangle", 0.08); beep(920, 0.1, "triangle", 0.16); }
+  function soundWin()    { [523, 659, 784, 1047].forEach(function (f, i) { beep(f, 0.25, "sine", i * 0.15); }); }
+  function soundStop() {
+    // Müzik durdu: inen "şşşt" süpürmesi
+    if (!audioCtx) return;
+    var t = audioCtx.currentTime;
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(700, t);
+    osc.frequency.exponentialRampToValueAtTime(120, t + 0.4);
+    gain.gain.setValueAtTime(0.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + 0.5);
+  }
+  document.addEventListener("pointerdown", ensureAudio);
+
+  // --- Müzik: 25 ms'lik kurulumla ileriye nota yerleştiren döngü ---
+  // Neşeli pentatonik ezgi + kare dalga bas; dosya yok, hepsi osilatör
+  var MELODY = [523, 659, 784, 659, 880, 784, 659, 523, 587, 659, 784, 880, 784, 659, 587, 523];
+  var music = { timer: null, nextTime: 0, step: 0, bpm: 120 };
+  function musicStart(bpm) {
+    if (!audioCtx || music.timer) return;
+    music.bpm = bpm;
+    music.step = 0;
+    music.nextTime = audioCtx.currentTime + 0.06;
+    music.timer = setInterval(function () {
+      var spb = 60 / music.bpm / 2;   // sekizlik nota süresi
+      while (music.nextTime < audioCtx.currentTime + 0.18) {
+        var n = MELODY[music.step % MELODY.length];
+        beepAt(n, spb * 0.9, "triangle", music.nextTime, 0.16);
+        if (music.step % 4 === 0) beepAt(n / 4, spb * 1.6, "square", music.nextTime, 0.10);
+        music.nextTime += spb;
+        music.step++;
+      }
+    }, 25);
+  }
+  function musicStop() {
+    if (music.timer) { clearInterval(music.timer); music.timer = null; }
+  }
+
+  // Arka planda geçen süre zorluk ölçümüne sayılmasın
+  var hiddenAt = 0;
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) hiddenAt = performance.now();
+    else if (hiddenAt) { roundStart += performance.now() - hiddenAt; hiddenAt = 0; }
+  });
+
+  // --- Oyun durumu ---
+  var cam = null, motion = null;
+  var phase = "yok";           // "dans" | "don" | "kutlama"
+  var tier = TIERS[adapt.level];
+  var stars = 0;
+  var freezesDone = 0;
+  var phaseEnd = 0;            // dans fazının bitiş zamanı
+  var ringProgress = 0;        // 0..1 donma halkası
+  var freezeEsik = 0;          // bu donmanın eşiği (merhametle gevşer)
+  var freezeWiggles = 0;       // bu donmadaki kıpırdama sayısı
+  var wiggleCooldown = 0;
+  var kipirdama = 0;           // tur toplamı (zorluk ölçüsü)
+  var enerjiSum = 0, enerjiN = 0;
+  var sparkles = [];           // {x, y, life}
+  var roundStart = 0;
+
+  function startDance(now) {
+    phase = "dans";
+    tier = TIERS[adapt.level];
+    var dur = tier.dansMin + Math.random() * (tier.dansMax - tier.dansMin);
+    phaseEnd = now + dur * 1000;
+    musicStart(tier.bpm);
+  }
+
+  function startFreeze() {
+    phase = "don";
+    ringProgress = 0;
+    freezeEsik = tier.esik;
+    freezeWiggles = 0;
+    musicStop();
+    soundStop();
+  }
+
+  function freezeSuccess(now) {
+    stars++;
+    freezesDone++;
+    starCountEl.textContent = stars;
+    roundCountEl.textContent = freezesDone;
+    soundDing();
+    if (freezesDone >= FREEZES_PER_ROUND) {
+      winRound();
+    } else {
+      startDance(now);
+    }
+  }
+
+  function winRound() {
+    phase = "kutlama";
+    musicStop();
+    var sure = (performance.now() - roundStart) / 1000;
+    adapt.record({
+      hard: kipirdama >= 4,
+      smooth: kipirdama <= 1,
+      kipirdama: kipirdama,
+      dansEnerji: enerjiN ? Math.round(enerjiSum / enerjiN * 100) / 100 : 0,
+      sure: Math.round(sure)
+    });
+    soundWin();
+    celebrateEl.classList.add("show");
+    throwConfetti();
+    setTimeout(function () {
+      celebrateEl.classList.remove("show");
+      freezesDone = 0;
+      kipirdama = 0;
+      enerjiSum = 0; enerjiN = 0;
+      roundCountEl.textContent = "0";
+      roundStart = performance.now();
+      startDance(performance.now());
+    }, 2600);
+  }
+
+  var CONFETTI = ["🎉","⭐","🎈","✨","💛","🧡"];
+  function throwConfetti() {
+    for (var i = 0; i < 26; i++) {
+      var piece = document.createElement("div");
+      piece.className = "confetti";
+      piece.textContent = CONFETTI[Math.floor(Math.random() * CONFETTI.length)];
+      piece.style.left = Math.random() * 100 + "vw";
+      piece.style.animationDuration = 1.6 + Math.random() * 1.6 + "s";
+      piece.style.animationDelay = Math.random() * 0.5 + "s";
+      document.body.appendChild(piece);
+      (function (p) { setTimeout(function () { p.remove(); }, 4000); })(piece);
+    }
+  }
+
+  function update(dt, now) {
+    if (!motion || phase === "yok" || phase === "kutlama") return;
+    motion.sample(now);
+    if (wiggleCooldown > 0) wiggleCooldown -= dt;
+
+    if (phase === "dans") {
+      enerjiSum += motion.global;
+      enerjiN++;
+      // Coşkulu dans ✨ saçar
+      if (motion.global > 0.3 && Math.random() < motion.global * 0.4) {
+        sparkles.push({ x: Math.random() * W, y: H * (0.2 + Math.random() * 0.6), life: 1 });
+      }
+      if (now >= phaseEnd) startFreeze();
+    } else if (phase === "don") {
+      if (motion.global < freezeEsik) {
+        ringProgress += dt / tier.donma;
+        if (ringProgress >= 1) freezeSuccess(now);
+      } else {
+        // Kıpırdadı: halka nazikçe boşalır, kardan adam güler — ceza yok
+        ringProgress = Math.max(0, ringProgress - dt * 1.5);
+        if (wiggleCooldown <= 0) {
+          wiggleCooldown = 1;
+          freezeWiggles++;
+          kipirdama++;
+          soundGiggle();
+          // Gizli merhamet: 3 kıpırdamadan sonra eşik bu donma için gevşer
+          if (freezeWiggles >= 3) freezeEsik = Math.min(0.5, freezeEsik + 0.08);
+        }
+      }
+    }
+
+    sparkles.forEach(function (s) { s.life -= dt; s.y -= 60 * dt; });
+    sparkles = sparkles.filter(function (s) { return s.life > 0; });
+  }
+
+  function drawCenterEmoji(emoji, size, wobble) {
+    ctx.save();
+    ctx.translate(W / 2, H / 2);
+    if (wobble) ctx.rotate(Math.sin(performance.now() / 90) * 0.12);
+    ctx.font = size + "px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(emoji, 0, 0);
+    ctx.restore();
+  }
+
+  function draw(now) {
+    ctx.clearRect(0, 0, W, H);
+    if (phase === "yok" || phase === "kutlama" || !motion) return;
+
+    var em = Math.min(W, H);
+
+    sparkles.forEach(function (s) {
+      ctx.globalAlpha = Math.max(s.life, 0);
+      ctx.font = em * 0.05 + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("✨", s.x, s.y);
+      ctx.globalAlpha = 1;
+    });
+
+    if (phase === "dans") {
+      // Tepede zıplayan nota
+      var bob = Math.abs(Math.sin(now / (60000 / tier.bpm / 2)));
+      ctx.font = em * 0.14 * (1 + bob * 0.25) + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("🎵", W / 2, H * 0.16);
+
+      // Enerji barı: dans ettikçe dolar, güneş parlar
+      var bw = W * 0.5, bh = Math.max(20, H * 0.045);
+      var bx = (W - bw) / 2, by = H - bh * 2.2;
+      ctx.fillStyle = "rgba(255,255,255,.75)";
+      roundRect(bx - 4, by - 4, bw + 8, bh + 8, bh / 2 + 4);
+      var fill = Math.min(1, motion.global * 1.6);
+      var grad = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+      grad.addColorStop(0, "#ffd54f");
+      grad.addColorStop(1, "#ff8a65");
+      ctx.fillStyle = grad;
+      if (fill > 0.02) roundRect(bx, by, bw * fill, bh, bh / 2);
+      ctx.font = em * (0.07 + fill * 0.05) + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("🌞", bx + bw + em * 0.07, by + bh / 2);
+    } else if (phase === "don") {
+      var moving = motion.global >= freezeEsik;
+      // Donma halkası
+      var r = em * 0.22;
+      ctx.lineWidth = em * 0.035;
+      ctx.strokeStyle = "rgba(255,255,255,.5)";
+      ctx.beginPath();
+      ctx.arc(W / 2, H / 2, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = "#4fc3f7";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.arc(W / 2, H / 2, r, -Math.PI / 2, -Math.PI / 2 + ringProgress * Math.PI * 2);
+      ctx.stroke();
+      // Kardan adam: dururken ciddi buz, kıpırdarken gülen sallanma
+      drawCenterEmoji(moving ? "⛄" : "🧊", em * 0.24, moving);
+      if (moving) {
+        ctx.font = em * 0.1 + "px sans-serif";
+        ctx.fillText("😄", W / 2 + em * 0.18, H / 2 - em * 0.16);
+      }
+    }
+  }
+
+  function roundRect(x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  var lastTime = 0;
+  function loop(t) {
+    var dt = Math.min((t - lastTime) / 1000, 0.05);
+    lastTime = t;
+    update(dt, t);
+    draw(t);
+    requestAnimationFrame(loop);
+  }
+
+  window.KemalKamera.start().then(function (c) {
+    cam = c;
+    motion = window.KemalKamera.createMotion(cam.video);
+    return window.KemalKamera.warmup(cam.video, motion, { beep: beep });
+  }).then(function () {
+    roundStart = performance.now();
+    startDance(performance.now());
+    requestAnimationFrame(function (t) { lastTime = t; requestAnimationFrame(loop); });
+  });
+
+  // Test kancası (tools/smoke-kamera.mjs kullanır)
+  window.__kameraDebug = {
+    skipWarmup: function () { if (window.KemalKamera._skipWarmup) window.KemalKamera._skipWarmup(); },
+    motionGlobal: function () { return motion ? motion.global : -1; },
+    phase: function () { return phase; },
+    stars: function () { return stars; },
+    forceFreeze: function () { if (phase === "dans") startFreeze(); },
+    forceFreezeDone: function () { if (phase === "don") freezeSuccess(performance.now()); }
+  };
+})();
+</script>
+</body>
+</html>
