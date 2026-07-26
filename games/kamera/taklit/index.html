@@ -276,6 +276,8 @@
   var sureler = [];             // poz başına saniye
   var L = null;                 // son algılanan adlandırılmış noktalar
   var outOfFrame = false;
+  var pozIst = null;            // aktif pozun kalibrasyon sayaçları
+  var pozlar = [];              // tur içindeki poz kayıtları (analiz sayfası okur)
   var lastDetect = 0;
   var detectInterval = 42;      // ~24 Hz; yavaş cihazda otomatik seyrekleşir
   var detectDur = 0;            // ölçülen ortalama algılama süresi
@@ -286,6 +288,9 @@
     lastTarget = target;
     matchProgress = 0;
     poseStart = performance.now();
+    // Kalibrasyon: kare kare "tam tuttu / az kaldı / kadraj dışı" sayılır;
+    // analiz sayfası bu oranlardan hangi eşiğin sıkı olduğunu çıkarır
+    pozIst = { kare: 0, tam: 0, yakin: 0, disari: 0, vis: 0 };
   }
 
   function newRound() {
@@ -293,14 +298,28 @@
     posesDone = 0;
     ipucu = 0;
     sureler = [];
+    pozlar = [];
     roundCountEl.textContent = "0";
     pickTarget();
     playing = true;
   }
 
   function poseSuccess(auto) {
-    sureler.push((performance.now() - poseStart) / 1000);
+    var sn = (performance.now() - poseStart) / 1000;
+    sureler.push(sn);
     if (auto) ipucu++;
+    if (pozIst && target) {
+      var k = Math.max(1, pozIst.kare);
+      pozlar.push({
+        id: target.id,
+        sure: Math.round(sn * 10) / 10,
+        oto: auto ? 1 : 0,
+        tamOran: Math.round(pozIst.tam / k * 100) / 100,
+        yakinOran: Math.round(pozIst.yakin / k * 100) / 100,
+        disariOran: Math.round(pozIst.disari / k * 100) / 100,
+        gorunurluk: Math.round(pozIst.vis / k * 100) / 100
+      });
+    }
     stars++;
     posesDone++;
     starCountEl.textContent = stars;
@@ -319,7 +338,8 @@
       smooth: ortSure < 6 && ipucu === 0,
       ortSure: Math.round(ortSure * 10) / 10,
       ipucu: ipucu,
-      havuz: tier.havuz
+      havuz: tier.havuz,
+      pozlar: pozlar
     });
     soundWin();
     celebrateEl.classList.add("show");
@@ -386,10 +406,28 @@
     outOfFrame = false;
     var matched = false;
     if (L) {
+      var visSum = 0;
       for (var i = 0; i < target.gerek.length; i++) {
-        if (L[target.gerek[i]].v < 0.4) { outOfFrame = true; break; }
+        var v = L[target.gerek[i]].v;
+        visSum += v;
+        if (v < 0.4) outOfFrame = true;
       }
-      if (!outOfFrame) matched = target.check(L, tol);
+      if (pozIst) {
+        pozIst.kare++;
+        pozIst.vis += visSum / target.gerek.length;
+        if (outOfFrame) pozIst.disari++;
+      }
+      if (!outOfFrame) {
+        var tam = target.check(L, 1);
+        matched = tam || (tol > 1 && target.check(L, tol));
+        if (pozIst) {
+          if (tam) pozIst.tam++;
+          else if (target.check(L, 1.35)) pozIst.yakin++;   // az kaldı: eşik sıkı sinyali
+        }
+      }
+    } else if (pozIst) {
+      pozIst.kare++;
+      pozIst.disari++;
     }
 
     if (matched) {

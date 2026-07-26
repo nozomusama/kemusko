@@ -149,6 +149,40 @@ function checkGame(name, html, adaptKey) {
   ok("merkez ve ana menü bağlantıları tamam");
 }
 
+// --- Analiz sayfası ---
+{
+  const analiz = read("analiz/index.html");
+  const scripts = [...analiz.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+  if (!scripts.length) err("analiz: script bloğu bulunamadı");
+  scripts.forEach((m, i) => {
+    try { new Function(m[1]); } catch (e) { err(`analiz: script #${i} sözdizimi: ${e.message}`); }
+  });
+  for (const k of ["kamera-balon", "kamera-dans", "kamera-taklit", "kamera-agzini-ac"]) {
+    if (!analiz.includes(k)) err(`analiz: ${k} oyunu kapsanmıyor`);
+  }
+  if (!analiz.includes("kemal-telemetry-")) err("analiz: telemetri anahtarları okunmuyor");
+  const menu2 = read("index.html");
+  if (!menu2.includes('href="analiz/index.html"')) err("ana menü: analiz sayfası bağlantısı yok");
+  ok("analiz sayfası tamam");
+}
+
+// --- Oyunlar kalibrasyon alanlarını kaydediyor mu ---
+{
+  const alanlar = {
+    "games/kamera/balon/index.html": ["patlatmalar", "ortHareket"],
+    "games/kamera/dans/index.html": ["donmaHareket"],
+    "games/kamera/taklit/index.html": ["pozlar", "yakinOran"],
+    "games/kamera/agzini-ac/index.html": ["agizMax", "agizOrt"],
+  };
+  for (const [p, keys] of Object.entries(alanlar)) {
+    const html = read(p);
+    for (const k of keys) {
+      if (!html.includes(k)) err(`${p}: kalibrasyon alanı "${k}" kaydedilmiyor`);
+    }
+  }
+  ok("kalibrasyon telemetrisi yerinde");
+}
+
 // --- kamera.js sözdizimi ---
 {
   const js = read("games/shared/kamera.js");

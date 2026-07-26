@@ -182,6 +182,8 @@
   var popped = 0;
   var tier = TIERS[adapt.level];
   var roundStart = 0;
+  var patlatmalar = [];         // balon başına patlatma süresi (kalibrasyon)
+  var hareketSum = 0, hareketN = 0;   // tur boyunca ortalama hareket şiddeti
 
   var COLORS = [0, 30, 55, 120, 200, 260, 320];   // ton (hue) paleti
 
@@ -201,6 +203,8 @@
   function newRound() {
     tier = TIERS[adapt.level];
     popped = 0;
+    patlatmalar = [];
+    hareketSum = 0; hareketN = 0;
     balloons = [];
     for (var i = 0; i < tier.balon; i++) spawnBalloon();
     goalCountEl.textContent = popped + "/" + tier.hedef;
@@ -209,6 +213,7 @@
   }
 
   function popBalloon(b, idx) {
+    patlatmalar.push(Math.round((performance.now() - b.born) / 100) / 10);
     balloons.splice(idx, 1);
     var cov = window.KemalKamera.cover(cam.video, W, H);
     burst(cov.sx(b.x), cov.sy(b.y), "✨", 8);
@@ -235,7 +240,10 @@
       smooth: ortPatlatma < 4,
       sure: Math.round(sure),
       ortPatlatma: Math.round(ortPatlatma * 10) / 10,
-      hedef: tier.hedef
+      hedef: tier.hedef,
+      esik: tier.esik,
+      patlatmalar: patlatmalar,
+      ortHareket: hareketN ? Math.round(hareketSum / hareketN * 100) / 100 : 0
     });
     soundWin();
     celebrateEl.classList.add("show");
@@ -276,6 +284,7 @@
     if (!playing || !motion) return;
 
     var newData = motion.sample(now);
+    if (newData) { hareketSum += motion.global; hareketN++; }
     var cov = window.KemalKamera.cover(cam.video, W, H);
     var rPx = balloonPx();
 

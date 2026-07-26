@@ -187,6 +187,7 @@
   var mouth = null;       // {x, y} video-norm (aynalı)
   var mouthOpen = false;
   var jawScore = 0, smileScore = 0;
+  var agizMax = 0, agizSum = 0, agizN = 0;   // jawOpen dağılımı (kalibrasyon)
   var bonusCooldown = 0;
   var roundStart = 0;
   var lastDetect = 0;
@@ -206,6 +207,7 @@
     tier = TIERS[adapt.level];
     eaten = 0;
     kacan = 0;
+    agizMax = 0; agizSum = 0; agizN = 0;
     fruits = [];
     for (var i = 0; i < tier.ayni; i++) spawnFruit();
     goalCountEl.textContent = eaten + "/" + tier.hedef;
@@ -239,7 +241,10 @@
       smooth: kacan <= 1,
       kacan: kacan,
       sure: Math.round(sure),
-      hedef: tier.hedef
+      hedef: tier.hedef,
+      agizEsik: tier.agiz,
+      agizMax: Math.round(agizMax * 100) / 100,
+      agizOrt: agizN ? Math.round(agizSum / agizN * 100) / 100 : 0
     });
     soundWin();
     celebrateEl.classList.add("show");
@@ -303,6 +308,10 @@
         var cats = res.faceBlendshapes[0].categories;
         jawScore = findScore(cats, "jawOpen");
         smileScore = findScore(cats, "mouthSmileLeft") + findScore(cats, "mouthSmileRight");
+        if (playing) {
+          if (jawScore > agizMax) agizMax = jawScore;
+          agizSum += jawScore; agizN++;
+        }
       }
     } else {
       mouth = null;

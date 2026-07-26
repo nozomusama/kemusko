@@ -228,6 +228,7 @@
   var wiggleCooldown = 0;
   var kipirdama = 0;           // tur toplamı (zorluk ölçüsü)
   var enerjiSum = 0, enerjiN = 0;
+  var donmaSum = 0, donmaN = 0;   // donma sırasındaki hareket (kalibrasyon)
   var sparkles = [];           // {x, y, life}
   var roundStart = 0;
 
@@ -270,6 +271,8 @@
       smooth: kipirdama <= 1,
       kipirdama: kipirdama,
       dansEnerji: enerjiN ? Math.round(enerjiSum / enerjiN * 100) / 100 : 0,
+      donmaHareket: donmaN ? Math.round(donmaSum / donmaN * 100) / 100 : 0,
+      esik: tier.esik,
       sure: Math.round(sure)
     });
     soundWin();
@@ -280,6 +283,7 @@
       freezesDone = 0;
       kipirdama = 0;
       enerjiSum = 0; enerjiN = 0;
+      donmaSum = 0; donmaN = 0;
       roundCountEl.textContent = "0";
       roundStart = performance.now();
       startDance(performance.now());
@@ -314,6 +318,7 @@
       }
       if (now >= phaseEnd) startFreeze();
     } else if (phase === "don") {
+      donmaSum += motion.global; donmaN++;
       if (motion.global < freezeEsik) {
         ringProgress += dt / tier.donma;
         if (ringProgress >= 1) freezeSuccess(now);

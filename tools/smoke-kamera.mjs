@@ -178,6 +178,44 @@ try {
     await page.screenshot({ path: SHOTS + "kamera-uyku.png" });
     await page.close();
   }
+
+  // --- 7) 📊 Analiz sayfası: kayıtları okuyup rapor + kalibrasyon üretiyor ---
+  {
+    const page = await newPage("analiz");
+    await page.addInitScript(() => {
+      const tur = (ek) => ({ t: 1, level: 0, next: 0, hard: false, smooth: true, ...ek });
+      localStorage.setItem("kemal-adapt-kamera-taklit", JSON.stringify({ level: 1, streak: 0 }));
+      localStorage.setItem("kemal-telemetry-kamera-taklit", JSON.stringify([
+        tur({ ortSure: 9, ipucu: 1, pozlar: [
+          { id: "comelme", sure: 22, oto: 1, tamOran: 0.02, yakinOran: 0.4, disariOran: 0.05, gorunurluk: 0.9 },
+          { id: "ucak", sure: 4, oto: 0, tamOran: 0.5, yakinOran: 0.1, disariOran: 0, gorunurluk: 0.95 },
+        ] }),
+      ]));
+      localStorage.setItem("kemal-telemetry-kamera-agzini-ac", JSON.stringify([
+        tur({ kacan: 2, agizEsik: 0.4, agizMax: 0.41, agizOrt: 0.2 }),
+      ]));
+    });
+    await page.goto(`http://localhost:${PORT}/analiz/index.html`);
+    await sleep(400);
+    const r = await page.evaluate(() => ({
+      kartlar: document.querySelectorAll("#kartlar .card").length,
+      pozSatir: document.querySelectorAll("#poz-tablo tbody tr").length,
+      kalibrasyon: document.querySelectorAll("#kalibrasyon .card").length,
+      kopyala: !!document.getElementById("kopyala"),
+      sikiEsik: document.body.textContent.includes("eşik sıkı"),
+      agizUyari: document.body.textContent.includes("düşürülmeli"),
+    }));
+    if (r.kartlar >= 9) ok("analiz: tüm oyun kartları var");
+    else err(`analiz: 9 oyun kartı beklenirdi, ${r.kartlar} var`);
+    if (r.pozSatir === 2 && r.sikiEsik) ok("analiz: poz kalibrasyon tablosu sıkı eşiği işaretliyor");
+    else err(`analiz: poz tablosu hatalı (satır=${r.pozSatir}, sıkıEşik=${r.sikiEsik})`);
+    if (r.kalibrasyon >= 1 && r.agizUyari) ok("analiz: ağız eşiği uyarısı üretiliyor");
+    else err(`analiz: kalibrasyon ipuçları eksik (kart=${r.kalibrasyon}, uyarı=${r.agizUyari})`);
+    if (r.kopyala) ok("analiz: kopyala butonu var");
+    else err("analiz: kopyala butonu yok");
+    await page.screenshot({ path: SHOTS + "kamera-analiz.png", fullPage: true });
+    await page.close();
+  }
 } finally {
   await browser.close();
   srv.kill();
