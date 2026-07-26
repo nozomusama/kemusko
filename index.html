@@ -79,8 +79,9 @@
   a.game-btn.paint { border: 6px solid #ec407a; }
   a.game-btn.steps { border: 6px solid #26a69a; }
   a.game-btn.camera { border: 6px solid #29b6f6; }
-  /* Yatay/kısa ekranda 5 buton sığmaz: iki sütuna geç ve kaydırmaya izin ver */
-  @media (max-height: 560px) {
+  /* Yatay/kısa ekranda ve masaüstü tarayıcıda 6 buton tek sütuna sığmaz:
+     iki sütuna geç ve kaydırmaya izin ver (kamera oyunları dizüstünden açılıyor) */
+  @media (max-height: 560px), (min-width: 900px) and (orientation: landscape) {
     body {
       overflow-y: auto;
       justify-content: flex-start;

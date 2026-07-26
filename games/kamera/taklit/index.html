@@ -109,11 +109,13 @@
   // (KemalKamera.landmarks.named), tol = tolerans çarpanı (ipucu açılınca 1.3).
   // gerek = görünür olması şart noktalar; havuz = hangi kademeden itibaren.
   // fig = hedef çöp adamın eklem koordinatları (1x1 kutuda, y aşağı).
+  // Bütün eşikler gövde boyuna (torso) ya da açıya oranlıdır — çocuk kameradan
+  // 2-3 m uzakta karede küçük görünür, mutlak kare-oranı eşikleri orada tutmaz.
   var POSES = /*POSES_START*/[
     { id: "eller-yukari", emoji: "🙌", havuz: 0,
       gerek: ["nose", "lWrist", "rWrist"],
       check: function (L, tol) {
-        var pay = 0.04 * tol;
+        var pay = 0.25 * window.KemalKamera.landmarks.torso(L) * tol;
         return L.lWrist.y < L.nose.y + pay && L.rWrist.y < L.nose.y + pay;
       },
       fig: { head: [0.5, 0.18], neck: [0.5, 0.30], lSho: [0.38, 0.32], rSho: [0.62, 0.32],
@@ -123,9 +125,11 @@
     { id: "ucak", emoji: "✈️", havuz: 0,
       gerek: ["lShoulder", "rShoulder", "lWrist", "rWrist"],
       check: function (L, tol) {
-        var pay = 0.09 * tol;
+        var g = window.KemalKamera.landmarks.torso(L);
+        var pay = 0.45 * g * tol;
+        var acilim = 0.45 * g / tol;
         var duz = Math.abs(L.lWrist.y - L.lShoulder.y) < pay && Math.abs(L.rWrist.y - L.rShoulder.y) < pay;
-        var acik = Math.abs(L.lWrist.x - L.lShoulder.x) > 0.10 && Math.abs(L.rWrist.x - L.rShoulder.x) > 0.10;
+        var acik = Math.abs(L.lWrist.x - L.lShoulder.x) > acilim && Math.abs(L.rWrist.x - L.rShoulder.x) > acilim;
         return duz && acik;
       },
       fig: { head: [0.5, 0.18], neck: [0.5, 0.30], lSho: [0.38, 0.32], rSho: [0.62, 0.32],
@@ -135,7 +139,7 @@
     { id: "tek-el", emoji: "🙋", havuz: 0,
       gerek: ["nose", "lWrist", "rWrist", "lShoulder", "rShoulder"],
       check: function (L, tol) {
-        var pay = 0.04 * tol;
+        var pay = 0.25 * window.KemalKamera.landmarks.torso(L) * tol;
         var solYukari = L.lWrist.y < L.nose.y + pay && L.rWrist.y > L.rShoulder.y - pay;
         var sagYukari = L.rWrist.y < L.nose.y + pay && L.lWrist.y > L.lShoulder.y - pay;
         return solYukari || sagYukari;
@@ -147,38 +151,45 @@
     { id: "eller-basta", emoji: "🙆", havuz: 1,
       gerek: ["nose", "lWrist", "rWrist"],
       check: function (L, tol) {
-        var d = window.KemalKamera.landmarks.dist;
-        var pay = 0.20 * tol;
-        return d(L.lWrist, L.nose) < pay && d(L.rWrist, L.nose) < pay;
+        var lm = window.KemalKamera.landmarks;
+        var pay = 0.9 * lm.torso(L) * tol;
+        return lm.dist(L.lWrist, L.nose) < pay && lm.dist(L.rWrist, L.nose) < pay;
       },
       fig: { head: [0.5, 0.20], neck: [0.5, 0.32], lSho: [0.38, 0.34], rSho: [0.62, 0.34],
              lElb: [0.24, 0.26], rElb: [0.76, 0.26], lWri: [0.42, 0.10], rWri: [0.58, 0.10],
              hipC: [0.5, 0.56], lHip: [0.43, 0.56], rHip: [0.57, 0.56],
              lKne: [0.42, 0.73], rKne: [0.58, 0.73], lAnk: [0.41, 0.89], rAnk: [0.59, 0.89] } },
     { id: "comelme", emoji: "🐸", havuz: 1,
-      gerek: ["lHip", "rHip", "lKnee", "rKnee"],
+      gerek: ["lHip", "rHip", "lKnee", "rKnee", "lAnkle", "rAnkle"],
       check: function (L, tol) {
-        var pay = 0.12 * tol;
-        return Math.abs(L.lHip.y - L.lKnee.y) < pay && Math.abs(L.rHip.y - L.rKnee.y) < pay;
+        // Diz bükülme açısı mesafeden bağımsızdır: ayakta ~175°, çömelmede <135°
+        var a = window.KemalKamera.landmarks.angle;
+        var lim = 135 + (tol - 1) * 100;
+        return a(L.lHip, L.lKnee, L.lAnkle) < lim && a(L.rHip, L.rKnee, L.rAnkle) < lim;
       },
       fig: { head: [0.5, 0.34], neck: [0.5, 0.44], lSho: [0.39, 0.46], rSho: [0.61, 0.46],
              lElb: [0.28, 0.54], rElb: [0.72, 0.54], lWri: [0.22, 0.62], rWri: [0.78, 0.62],
              hipC: [0.5, 0.68], lHip: [0.44, 0.68], rHip: [0.56, 0.68],
              lKne: [0.32, 0.66], rKne: [0.68, 0.66], lAnk: [0.34, 0.89], rAnk: [0.66, 0.89] } },
     { id: "tek-ayak", emoji: "🦩", havuz: 2,
-      gerek: ["lKnee", "rKnee", "lAnkle", "rAnkle"],
+      gerek: ["lAnkle", "rAnkle"],
       check: function (L, tol) {
-        var pay = 0.03 * tol;
-        return L.lAnkle.y < L.rKnee.y + pay || L.rAnkle.y < L.lKnee.y + pay;
+        // Bir ayak yerden belirgin kalksın yeter — diz hizasına çekmek 4-5 yaş
+        // için fazla zordu, ayak bilekleri arasındaki yükseklik farkına bakılır
+        var g = window.KemalKamera.landmarks.torso(L);
+        return Math.abs(L.lAnkle.y - L.rAnkle.y) > 0.3 * g / tol;
       },
       fig: { head: [0.5, 0.18], neck: [0.5, 0.30], lSho: [0.38, 0.32], rSho: [0.62, 0.32],
              lElb: [0.26, 0.38], rElb: [0.74, 0.38], lWri: [0.18, 0.30], rWri: [0.82, 0.30],
              hipC: [0.5, 0.55], lHip: [0.43, 0.55], rHip: [0.57, 0.55],
-             lKne: [0.42, 0.68], rKne: [0.58, 0.72], lAnk: [0.56, 0.70], rAnk: [0.59, 0.89] } },
+             lKne: [0.42, 0.70], rKne: [0.58, 0.72], lAnk: [0.47, 0.78], rAnk: [0.59, 0.89] } },
     { id: "egil-yan", emoji: "🌴", havuz: 2,
       gerek: ["lShoulder", "rShoulder"],
       check: function (L, tol) {
-        return Math.abs(L.lShoulder.y - L.rShoulder.y) > 0.09 / tol;
+        // Omuz çizgisinin eğimi (oran) mesafeden bağımsızdır; ~16°+ eğim yeter
+        var dx = Math.abs(L.lShoulder.x - L.rShoulder.x);
+        var dy = Math.abs(L.lShoulder.y - L.rShoulder.y);
+        return dx > 0.001 && dy / dx > 0.28 / tol;
       },
       fig: { head: [0.34, 0.22], neck: [0.40, 0.32], lSho: [0.30, 0.36], rSho: [0.52, 0.30],
              lElb: [0.20, 0.24], rElb: [0.62, 0.20], lWri: [0.13, 0.13], rWri: [0.72, 0.11],
@@ -368,15 +379,15 @@
     detect(now);
 
     var bekleme = (now - poseStart) / 1000;
-    // Merhamet: 20 sn olmadıysa tolerans genişler, 35 sn'de kutlanır
-    var tol = bekleme > 20 ? 1.3 : 1;
-    if (bekleme > 35) { poseSuccess(true); return; }
+    // Merhamet: 15 sn olmadıysa tolerans genişler, 30 sn'de kutlanır
+    var tol = bekleme > 15 ? 1.35 : 1;
+    if (bekleme > 30) { poseSuccess(true); return; }
 
     outOfFrame = false;
     var matched = false;
     if (L) {
       for (var i = 0; i < target.gerek.length; i++) {
-        if (L[target.gerek[i]].v < 0.5) { outOfFrame = true; break; }
+        if (L[target.gerek[i]].v < 0.4) { outOfFrame = true; break; }
       }
       if (!outOfFrame) matched = target.check(L, tol);
     }
@@ -500,7 +511,7 @@
     roundRectPath(cx0, cy0, cardW, cardH, 24);
     ctx.stroke();
     var bekleme = (performance.now() - poseStart) / 1000;
-    drawStick(target.fig, cx0 + cardW * 0.1, cy0 + cardH * 0.06, cardW * 0.8, "#5c6bc0", bekleme > 20);
+    drawStick(target.fig, cx0 + cardW * 0.1, cy0 + cardH * 0.06, cardW * 0.8, "#5c6bc0", bekleme > 15);
     ctx.font = cardW * 0.22 + "px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";

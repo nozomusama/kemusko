@@ -450,6 +450,14 @@
       var dx = a.x - b.x, dy = a.y - b.y;
       return Math.sqrt(dx * dx + dy * dy);
     },
+    // Gövde boyu (omuz ortası → kalça ortası). Poz eşikleri buna oranlanır:
+    // çocuk kameradan uzaklaşınca karede küçülür, mutlak eşikler tutmaz olur.
+    torso: function (L) {
+      var sx = (L.lShoulder.x + L.rShoulder.x) / 2, sy = (L.lShoulder.y + L.rShoulder.y) / 2;
+      var hx = (L.lHip.x + L.rHip.x) / 2, hy = (L.lHip.y + L.rHip.y) / 2;
+      var dx = sx - hx, dy = sy - hy;
+      return Math.max(0.05, Math.sqrt(dx * dx + dy * dy));
+    },
     // b köşesindeki açı (derece)
     angle: function (a, b, c) {
       var v1x = a.x - b.x, v1y = a.y - b.y;
