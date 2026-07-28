@@ -74,6 +74,25 @@ ulaşılan kademede el yapımı bölüm gösterilir, sonrasında oyun içi üret
 taze bölümler kurar ve her birini gömülü çözücüyle kanıtlayarak kabul eder.
 Üreticiyi `node tools/test-yilan-generator.mjs` sınar.
 
+### 📊 Gelişim ve kalibrasyon raporu
+
+Ana menünün sağ alt köşesindeki 📊 düğmesi `analiz/index.html` sayfasını açar
+(ebeveynler için — çocuğa gerek yok). Sayfa yalnızca **o cihazdaki**
+kayıtları okur ve gösterir:
+
+- Oyun başına tur sayısı, güncel kademe, kademe geçmişi grafiği ve son 10
+  turun metrik ortalamaları
+- **Poz kalibrasyonu** (Hareket Taklidi): her poz için deneme sayısı, ortalama
+  süre, ipucuyla geçme oranı ve kare kare "tam tuttu / az kaldı / kadraj dışı"
+  oranları — hangi pozun eşiği sıkıysa işaretlenir
+- **Kamera kalibrasyon ipuçları**: balon patlatma hızı ve hareket şiddeti,
+  donma sırasındaki gürültü, ağız açıklığının eşiğe oranı — eşiklerin
+  gevşetilmesi/sıkılması gerektiğinde uyarı verir
+
+**📋 Verileri Kopyala** düğmesi bütün kayıtları JSON olarak panoya kopyalar;
+birkaç oyundan sonra bu çıktıya bakılarak `TIERS`/`POSES` eşikleri gerçek
+veriye göre güncellenir.
+
 **Yeni oyun eklerken:** `<script src="../shared/adapt.js"></script>` ekleyin,
 `KemalAdapt.create("<oyun>", {min, max, start, streak})` ile kademeyi alın ve
 her tur sonunda `record()` çağırın — analiz ve uyarlama kendiliğinden çalışır.
@@ -96,6 +115,7 @@ telefonun tarayıcısından oynanabilir. Kamera oyunları tarayıcı gereği yal
 
 ```
 index.html                    → Ana menü
+analiz/index.html             → Gelişim ve kalibrasyon raporu (ebeveyn sayfası)
 games/shared/adapt.js         → Ortak uyarlanabilir zorluk + telemetri modülü
 games/yilan/index.html        → Yılan Kurtarma oyunu
 games/komut/index.html        → Yılanın Yolu (komut dizisi) oyunu
