@@ -53,11 +53,13 @@ function checkGame(name, html, adaptKey) {
     if (T.length < 4) err("dans: en az 4 kademe olmalı");
     T.forEach((t, i) => {
       if (!(t.donma >= 1 && t.donma <= 8)) err(`dans kademe ${i}: donma aralık dışı`);
-      if (!(t.esik > 0 && t.esik < 1)) err(`dans kademe ${i}: esik aralık dışı`);
+      // Eşik artık mutlak değil: ölçülen dans enerjisine oranlanır
+      if (!(t.oran > 0.2 && t.oran <= 2)) err(`dans kademe ${i}: oran aralık dışı`);
+      if (t.esik !== undefined) err(`dans kademe ${i}: mutlak esik kalmış (oran kullanılmalı)`);
       if (!(t.dansMin <= t.dansMax)) err(`dans kademe ${i}: dansMin > dansMax`);
       if (!(t.bpm >= 60 && t.bpm <= 200)) err(`dans kademe ${i}: bpm aralık dışı`);
       if (i > 0 && t.donma < T[i - 1].donma) err(`dans kademe ${i}: donma süresi geriliyor`);
-      if (i > 0 && t.esik > T[i - 1].esik) err(`dans kademe ${i}: esik gevşiyor (kolaylaşıyor)`);
+      if (i > 0 && t.oran > T[i - 1].oran) err(`dans kademe ${i}: oran gevşiyor (kolaylaşıyor)`);
     });
     ok(`dans TIERS: ${T.length} kademe`);
   }
@@ -92,13 +94,21 @@ function checkGame(name, html, adaptKey) {
           const pt = p.fig[j];
           if (!pt || !(pt[0] >= 0 && pt[0] <= 1 && pt[1] >= 0 && pt[1] <= 1)) err(`poz ${p.id}: fig.${j} eksik/aralık dışı`);
         });
-        if (!(p.havuz >= 0 && p.havuz <= 2)) err(`poz ${p.id}: havuz aralık dışı`);
+        if (!(p.havuz >= 0 && p.havuz <= 6)) err(`poz ${p.id}: havuz aralık dışı`);
         byHavuz[p.havuz] = (byHavuz[p.havuz] || 0) + 1;
         if (p.havuz > maxHavuz) maxHavuz = p.havuz;
       });
-      for (const h of [0, 1, 2]) {
+      for (let h = 0; h <= maxHavuz; h++) {
         if (!byHavuz[h]) err(`havuz ${h} boş — o kademede seçilecek poz yok`);
       }
+      // Kalibrasyon dersi: bir kademede birden fazla yeni poz açılırsa zorluk
+      // sıçraması oluyor (telemetride 3. kademe her seferinde çöktü)
+      for (let h = 1; h <= maxHavuz; h++) {
+        if (byHavuz[h] > 1) err(`havuz ${h}: aynı kademede ${byHavuz[h]} yeni poz açılıyor (tek tek açılmalı)`);
+      }
+      // Kadraja sığmayan eklem isteyen poz seçilemediğinde geri düşülecek
+      // üst gövde pozu her zaman bulunmalı
+      if (!POSES.some((p) => p.ust && p.havuz === 0)) err("taklit: havuz 0'da üst gövde (ust) pozu yok");
       ok(`taklit POSES: ${POSES.length} poz (havuzlar: ${JSON.stringify(byHavuz)})`);
     }
   }

@@ -108,12 +108,16 @@
   // Kademeler: hiz = düşme hızı (ekran boyu/sn), nisan = "oto" (meyve ağza
   // süzülür, sadece zamanlama) / "kafa" (düz düşer, kafayla hizalanır),
   // agiz = jawOpen eşiği, hedef = yenecek meyve, ayni = eşzamanlı meyve
+  // Hızlar telemetriye göre artırıldı: 6 turun hiçbirinde zorlanma yoktu
+  // (kaçan meyve 0-1), ama turlar 35-72 sn sürüyordu — yani süre çocuğun
+  // becerisiyle değil, meyvenin düşmesini beklemekle geçiyordu. Meyve başına
+  // ~10 sn'den ~6 sn'ye indirildi; bekleme değil yeme oyunu olsun.
   var TIERS = /*TIERS_START*/[
-    {"hiz":0.10,"nisan":"oto", "agiz":0.30,"hedef":5, "ayni":1},
-    {"hiz":0.13,"nisan":"oto", "agiz":0.35,"hedef":6, "ayni":1},
-    {"hiz":0.15,"nisan":"kafa","agiz":0.35,"hedef":7, "ayni":1},
-    {"hiz":0.18,"nisan":"kafa","agiz":0.40,"hedef":8, "ayni":2},
-    {"hiz":0.22,"nisan":"kafa","agiz":0.40,"hedef":10,"ayni":2}
+    {"hiz":0.15,"nisan":"oto", "agiz":0.30,"hedef":5, "ayni":1},
+    {"hiz":0.18,"nisan":"oto", "agiz":0.35,"hedef":6, "ayni":1},
+    {"hiz":0.21,"nisan":"kafa","agiz":0.35,"hedef":7, "ayni":1},
+    {"hiz":0.25,"nisan":"kafa","agiz":0.40,"hedef":8, "ayni":2},
+    {"hiz":0.30,"nisan":"kafa","agiz":0.40,"hedef":10,"ayni":2}
   ]/*TIERS_END*/;
 
   var adapt = window.KemalAdapt.create("kamera-agzini-ac", { min: 0, max: TIERS.length - 1, start: 0, streak: 2 });
@@ -216,6 +220,7 @@
   }
 
   function eatFruit(f, idx) {
+    if (!playing) return;          // aynı karede iki meyve yenirse tur iki kez bitmesin
     fruits.splice(idx, 1);
     var cov = window.KemalKamera.cover(cam.video, W, H);
     burst(cov.sx(f.x), cov.sy(f.y), "😋", 6);
@@ -229,7 +234,7 @@
     } else if (fruits.length < tier.ayni) {
       setTimeout(function () {
         if (playing && fruits.length < tier.ayni) spawnFruit();
-      }, 600);
+      }, 350);
     }
   }
 

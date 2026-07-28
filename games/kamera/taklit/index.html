@@ -112,7 +112,7 @@
   // Bütün eşikler gövde boyuna (torso) ya da açıya oranlıdır — çocuk kameradan
   // 2-3 m uzakta karede küçük görünür, mutlak kare-oranı eşikleri orada tutmaz.
   var POSES = /*POSES_START*/[
-    { id: "eller-yukari", emoji: "🙌", havuz: 0,
+    { id: "eller-yukari", emoji: "🙌", havuz: 0, ust: true,
       gerek: ["nose", "lWrist", "rWrist"],
       check: function (L, tol) {
         var pay = 0.25 * window.KemalKamera.landmarks.torso(L) * tol;
@@ -122,7 +122,7 @@
              lElb: [0.32, 0.20], rElb: [0.68, 0.20], lWri: [0.28, 0.07], rWri: [0.72, 0.07],
              hipC: [0.5, 0.55], lHip: [0.43, 0.55], rHip: [0.57, 0.55],
              lKne: [0.42, 0.72], rKne: [0.58, 0.72], lAnk: [0.41, 0.89], rAnk: [0.59, 0.89] } },
-    { id: "ucak", emoji: "✈️", havuz: 0,
+    { id: "ucak", emoji: "✈️", havuz: 0, ust: true,
       gerek: ["lShoulder", "rShoulder", "lWrist", "rWrist"],
       check: function (L, tol) {
         var g = window.KemalKamera.landmarks.torso(L);
@@ -136,7 +136,7 @@
              lElb: [0.24, 0.32], rElb: [0.76, 0.32], lWri: [0.09, 0.32], rWri: [0.91, 0.32],
              hipC: [0.5, 0.55], lHip: [0.43, 0.55], rHip: [0.57, 0.55],
              lKne: [0.42, 0.72], rKne: [0.58, 0.72], lAnk: [0.41, 0.89], rAnk: [0.59, 0.89] } },
-    { id: "tek-el", emoji: "🙋", havuz: 0,
+    { id: "tek-el", emoji: "🙋", havuz: 0, ust: true,
       gerek: ["nose", "lWrist", "rWrist", "lShoulder", "rShoulder"],
       check: function (L, tol) {
         var pay = 0.25 * window.KemalKamera.landmarks.torso(L) * tol;
@@ -148,7 +148,7 @@
              lElb: [0.33, 0.20], rElb: [0.66, 0.43], lWri: [0.30, 0.07], rWri: [0.68, 0.53],
              hipC: [0.5, 0.55], lHip: [0.43, 0.55], rHip: [0.57, 0.55],
              lKne: [0.42, 0.72], rKne: [0.58, 0.72], lAnk: [0.41, 0.89], rAnk: [0.59, 0.89] } },
-    { id: "eller-basta", emoji: "🙆", havuz: 1,
+    { id: "eller-basta", emoji: "🙆", havuz: 1, ust: true,
       gerek: ["nose", "lWrist", "rWrist"],
       check: function (L, tol) {
         var lm = window.KemalKamera.landmarks;
@@ -159,7 +159,7 @@
              lElb: [0.24, 0.26], rElb: [0.76, 0.26], lWri: [0.42, 0.10], rWri: [0.58, 0.10],
              hipC: [0.5, 0.56], lHip: [0.43, 0.56], rHip: [0.57, 0.56],
              lKne: [0.42, 0.73], rKne: [0.58, 0.73], lAnk: [0.41, 0.89], rAnk: [0.59, 0.89] } },
-    { id: "comelme", emoji: "🐸", havuz: 1,
+    { id: "comelme", emoji: "🐸", havuz: 2,
       gerek: ["lHip", "rHip", "lKnee", "rKnee", "lAnkle", "rAnkle"],
       check: function (L, tol) {
         // Diz bükülme açısı mesafeden bağımsızdır: ayakta ~175°, çömelmede <135°
@@ -171,7 +171,7 @@
              lElb: [0.28, 0.54], rElb: [0.72, 0.54], lWri: [0.22, 0.62], rWri: [0.78, 0.62],
              hipC: [0.5, 0.68], lHip: [0.44, 0.68], rHip: [0.56, 0.68],
              lKne: [0.32, 0.66], rKne: [0.68, 0.66], lAnk: [0.34, 0.89], rAnk: [0.66, 0.89] } },
-    { id: "tek-ayak", emoji: "🦩", havuz: 2,
+    { id: "tek-ayak", emoji: "🦩", havuz: 4,
       gerek: ["lAnkle", "rAnkle"],
       check: function (L, tol) {
         // Bir ayak yerden belirgin kalksın yeter — diz hizasına çekmek 4-5 yaş
@@ -183,7 +183,7 @@
              lElb: [0.26, 0.38], rElb: [0.74, 0.38], lWri: [0.18, 0.30], rWri: [0.82, 0.30],
              hipC: [0.5, 0.55], lHip: [0.43, 0.55], rHip: [0.57, 0.55],
              lKne: [0.42, 0.70], rKne: [0.58, 0.72], lAnk: [0.47, 0.78], rAnk: [0.59, 0.89] } },
-    { id: "egil-yan", emoji: "🌴", havuz: 2,
+    { id: "egil-yan", emoji: "🌴", havuz: 3, ust: true,
       gerek: ["lShoulder", "rShoulder"],
       check: function (L, tol) {
         // Omuz çizgisinin eğimi (oran) mesafeden bağımsızdır; ~16°+ eğim yeter
@@ -198,12 +198,17 @@
   ]/*POSES_END*/;
 
   // Kademeler: havuz = poz havuzu derinliği, tutma = pozu tutma süresi (ms)
+  // Telemetri (2026-07-26/28): 3. kademeye her çıkışta tur "zor" gelip düşüş
+  // yaşandı — o kademede havuz aynı anda İKİ yeni poz (🦩 tek-ayak + 🌴 yana
+  // eğilme) açıyordu. Havuz artık kademe başına tek poz büyür; bacak/ayak
+  // bileği isteyen 🐸 ve 🦩 en sona alındı (oturma odasında bacaklar çoğu
+  // zaman kadraj dışında kalıyor).
   var TIERS = /*TIERS_START*/[
     {"havuz":0,"tutma":600},
-    {"havuz":1,"tutma":900},
-    {"havuz":1,"tutma":1200},
-    {"havuz":2,"tutma":1200},
-    {"havuz":2,"tutma":1500}
+    {"havuz":1,"tutma":800},
+    {"havuz":2,"tutma":1000},
+    {"havuz":3,"tutma":1100},
+    {"havuz":4,"tutma":1300}
   ]/*TIERS_END*/;
 
   var POSES_PER_ROUND = 5;
@@ -282,8 +287,25 @@
   var detectInterval = 42;      // ~24 Hz; yavaş cihazda otomatik seyrekleşir
   var detectDur = 0;            // ölçülen ortalama algılama süresi
 
+  // Bir noktanın son saniyelerdeki ortalama görünürlüğü; kadraj dışı eklem
+  // isteyen poz seçilmesin diye kullanılır (yoksa poz asla tutmaz, çocuk
+  // 30 sn bekleyip otomatik geçişe kalır — telemetride ipucu 3-4 turlar bu).
+  var gorunurluk = {};
+  function gorunurMu(p) {
+    for (var i = 0; i < p.gerek.length; i++) {
+      var v = gorunurluk[p.gerek[i]];
+      if (v !== undefined && v < 0.45) return false;
+    }
+    return true;
+  }
+
   function pickTarget() {
-    var pool = POSES.filter(function (p) { return p.havuz <= tier.havuz && p !== lastTarget; });
+    var acik = POSES.filter(function (p) { return p.havuz <= tier.havuz && p !== lastTarget; });
+    // Önce kadraja sığan pozlar; hiçbiri sığmıyorsa üst gövde pozlarına düş,
+    // o da olmazsa havuzun tamamı (oyun asla poz bulamaz duruma düşmesin)
+    var pool = acik.filter(gorunurMu);
+    if (!pool.length) pool = acik.filter(function (p) { return p.ust; });
+    if (!pool.length) pool = acik.length ? acik : POSES;
     target = pool[Math.floor(Math.random() * pool.length)];
     lastTarget = target;
     matchProgress = 0;
@@ -334,7 +356,9 @@
     playing = false;
     var ortSure = sureler.reduce(function (a, b) { return a + b; }, 0) / Math.max(1, sureler.length);
     adapt.record({
-      hard: ortSure > 12 || ipucu > 0,
+      // Tek bir yavaş poz kademeyi düşürmesin: telemetride 3. kademedeki
+      // turlar tam olarak "ipucu 1" yüzünden zor sayılıp geri düşüyordu
+      hard: ortSure > 12 || ipucu >= 2,
       smooth: ortSure < 6 && ipucu === 0,
       ortSure: Math.round(ortSure * 10) / 10,
       ipucu: ipucu,
@@ -389,6 +413,12 @@
 
     if (res && res.landmarks && res.landmarks.length) {
       L = window.KemalKamera.landmarks.named(res.landmarks[0]);
+      // Yumuşatılmış görünürlük: tek karelik parazit poz havuzunu daraltmasın
+      for (var ad in L) {
+        if (!Object.prototype.hasOwnProperty.call(L, ad) || !L[ad]) continue;
+        var onceki = gorunurluk[ad];
+        gorunurluk[ad] = onceki === undefined ? L[ad].v : onceki + (L[ad].v - onceki) * 0.05;
+      }
     } else {
       L = null;
     }
@@ -399,9 +429,11 @@
     detect(now);
 
     var bekleme = (now - poseStart) / 1000;
-    // Merhamet: 15 sn olmadıysa tolerans genişler, 30 sn'de kutlanır
-    var tol = bekleme > 15 ? 1.35 : 1;
-    if (bekleme > 30) { poseSuccess(true); return; }
+    // Merhamet basamaklı: 8 sn'de tolerans genişler, 15 sn'de iyice açılır,
+    // 22 sn'de kutlanıp geçilir. (Eskiden 15/30 idi; telemetride poz başına
+    // 24-29 sn'lik turlar çıktı — çocuk çoğu pozda otomatik geçişi bekliyordu.)
+    var tol = bekleme > 15 ? 1.7 : (bekleme > 8 ? 1.35 : 1);
+    if (bekleme > 22) { poseSuccess(true); return; }
 
     outOfFrame = false;
     var matched = false;

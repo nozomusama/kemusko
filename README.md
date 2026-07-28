@@ -93,6 +93,19 @@ kayıtları okur ve gösterir:
 birkaç oyundan sonra bu çıktıya bakılarak `TIERS`/`POSES` eşikleri gerçek
 veriye göre güncellenir.
 
+#### Kalibrasyon günlüğü
+
+İlk iki oturumun (2026-07-26 ve 07-28, 36 tur) verisinden çıkan ayarlar:
+
+| Bulgu | Veri | Değişiklik |
+|---|---|---|
+| Taklit 3. kademede hep çöküyordu | Kademe 3'e her çıkışta tur "zor" → düşüş (ortalama 9,0 ve 14,5 sn) | Havuz kademe başına **tek** poz büyür; bacak isteyen 🐸/🦩 en sona |
+| Kadraj dışı eklem = kazanılamaz poz | 3-4 pozu otomatik geçişle biten turlar | Poz seçimi eklem görünürlüğüne bakar, sığmıyorsa üst gövde pozuna düşer |
+| Tek yavaş poz kademeyi düşürüyordu | `ipucu 1` olan turlar zor sayılıyordu | Zor eşiği `ipucu ≥ 2`; merhamet 15/30 sn yerine 8/15/22 sn |
+| Dans eşiği sinyalden büyüktü | Dans enerjisi 0,19 — mutlak eşik 0,20 | Eşik artık **ölçülen dans enerjisine oranlı** (mesafeden bağımsız) |
+| Ağzını Aç bekleme oyunuydu | Kaçan meyve 0-1 ama tur 35-72 sn | Düşme hızı artırıldı: meyve başına ~10 sn → ~6 sn |
+| Balon turu iki kez kaydediliyordu | Milisaniyesi aynı çift telemetri kaydı | Aynı karede ikinci patlatma turu tekrar bitiremez |
+
 **Yeni oyun eklerken:** `<script src="../shared/adapt.js"></script>` ekleyin,
 `KemalAdapt.create("<oyun>", {min, max, start, streak})` ile kademeyi alın ve
 her tur sonunda `record()` çağırın — analiz ve uyarlama kendiliğinden çalışır.
