@@ -248,9 +248,12 @@
     var dh = ort(dansLog.slice(-10).map(function (r) { return r.donmaHareket || 0; }));
     var de = ort(dansLog.slice(-10).map(function (r) { return r.esik || 0; }));
     var kp = ort(dansLog.slice(-10).map(function (r) { return r.kipirdama || 0; }));
+    var den = ort(dansLog.slice(-10).map(function (r) { return r.dansEnerji || 0; }));
     ipuclari.push({
       ad: "🕺 Dans ve Don",
-      satirlar: [["Donmadaki hareket", yuvarla(dh, 2) + " (eşik " + yuvarla(de, 2) + ")"], ["Tur başına kıpırdama", yuvarla(kp)]],
+      satirlar: [["Dans enerjisi", yuvarla(den, 2) + " (eşiğin dayanağı)"],
+                 ["Donmadaki hareket", yuvarla(dh, 2) + " (eşik " + yuvarla(de, 2) + ")"],
+                 ["Tur başına kıpırdama", yuvarla(kp)]],
       durum: de && dh > de ? ["uyari", "Dururken bile eşik aşılıyor — kamera gürültüsü olabilir, esik artırılabilir"]
            : ["iyi", "Dengeli görünüyor ✅"]
     });

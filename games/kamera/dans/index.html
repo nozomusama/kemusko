@@ -105,15 +105,26 @@
     return;
   }
 
-  // Kademeler: donma = kıpırdamadan durulacak süre (sn), esik = donarken izin
-  // verilen hareket, dansMin/Max = müzik süresi aralığı (sn), bpm = tempo
+  // Kademeler: donma = kıpırdamadan durulacak süre (sn), oran = donma eşiğinin
+  // çocuğun O ANKİ dans enerjisine oranı, dansMin/Max = müzik süresi (sn),
+  // bpm = tempo.
+  //
+  // Eşik neden mutlak değil: tek turluk telemetride dansEnerji 0.19 ölçüldü —
+  // yani çocuk tüm gücüyle dans ederken bile hareket sinyali 0.19, mutlak
+  // eşik ise 0.20'ydi. Sinyalin şiddeti mesafeye/ışığa göre kat kat değişiyor,
+  // bu yüzden eşik artık ölçülen dans enerjisine oranlanıyor: yakında da
+  // uzakta da "dansın yarısı kadar hareket" aynı anlama gelir.
   var TIERS = /*TIERS_START*/[
-    {"donma":2.0,"esik":0.20,"dansMin":6,"dansMax":10,"bpm":100},
-    {"donma":2.5,"esik":0.16,"dansMin":6,"dansMax":11,"bpm":110},
-    {"donma":3.0,"esik":0.13,"dansMin":5,"dansMax":12,"bpm":120},
-    {"donma":3.5,"esik":0.11,"dansMin":5,"dansMax":12,"bpm":130},
-    {"donma":4.0,"esik":0.10,"dansMin":4,"dansMax":13,"bpm":140}
+    {"donma":1.8,"oran":1.30,"dansMin":6,"dansMax":10,"bpm":100},
+    {"donma":2.2,"oran":1.05,"dansMin":6,"dansMax":11,"bpm":110},
+    {"donma":2.7,"oran":0.85,"dansMin":5,"dansMax":12,"bpm":120},
+    {"donma":3.2,"oran":0.70,"dansMin":5,"dansMax":12,"bpm":130},
+    {"donma":3.8,"oran":0.55,"dansMin":4,"dansMax":13,"bpm":140}
   ]/*TIERS_END*/;
+
+  // Ölçülen enerji yokken (ilk donma) kullanılacak varsayılan ve güvenlik sınırları
+  var ENERJI_VARSAYILAN = 0.20;
+  var ESIK_MIN = 0.05, ESIK_MAX = 0.45;
 
   var FREEZES_PER_ROUND = 5;
   var adapt = window.KemalAdapt.create("kamera-dans", { min: 0, max: TIERS.length - 1, start: 0, streak: 2 });
@@ -240,10 +251,15 @@
     musicStart(tier.bpm);
   }
 
+  // Bu turda ölçülen dans enerjisi (yoksa varsayılan) — donma eşiğinin dayanağı
+  function olculenEnerji() {
+    return enerjiN ? enerjiSum / enerjiN : ENERJI_VARSAYILAN;
+  }
+
   function startFreeze() {
     phase = "don";
     ringProgress = 0;
-    freezeEsik = tier.esik;
+    freezeEsik = Math.max(ESIK_MIN, Math.min(ESIK_MAX, tier.oran * olculenEnerji()));
     freezeWiggles = 0;
     musicStop();
     soundStop();
@@ -267,12 +283,16 @@
     musicStop();
     var sure = (performance.now() - roundStart) / 1000;
     adapt.record({
-      hard: kipirdama >= 4,
-      smooth: kipirdama <= 1,
+      // 5 donmada 7 kıpırdama olan ilk tur "zor" sayılıp en alt kademede
+      // damgalanmıştı — oysa çocuk beş donmayı da tamamlamıştı. Dans eden bir
+      // 4 yaş için donma başına bir kıpırdama normal kabul ediliyor.
+      hard: kipirdama >= 8,
+      smooth: kipirdama <= 3,
       kipirdama: kipirdama,
       dansEnerji: enerjiN ? Math.round(enerjiSum / enerjiN * 100) / 100 : 0,
       donmaHareket: donmaN ? Math.round(donmaSum / donmaN * 100) / 100 : 0,
-      esik: tier.esik,
+      esik: Math.round(freezeEsik * 100) / 100,
+      oran: tier.oran,
       sure: Math.round(sure)
     });
     soundWin();
@@ -331,7 +351,7 @@
           kipirdama++;
           soundGiggle();
           // Gizli merhamet: 3 kıpırdamadan sonra eşik bu donma için gevşer
-          if (freezeWiggles >= 3) freezeEsik = Math.min(0.5, freezeEsik + 0.08);
+          if (freezeWiggles >= 3) freezeEsik = Math.min(ESIK_MAX, freezeEsik * 1.4);
         }
       }
     }

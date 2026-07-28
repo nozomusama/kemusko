@@ -213,6 +213,10 @@
   }
 
   function popBalloon(b, idx) {
+    // Aynı karede iki balon patlayabiliyordu; ikincisi winRound'u tekrar
+    // çağırıp turu iki kez kaydediyor ve kademeyi iki kez ilerletiyordu
+    // (telemetride t'si milisaniyesine kadar aynı olan çift kayıt bundan).
+    if (!playing) return;
     patlatmalar.push(Math.round((performance.now() - b.born) / 100) / 10);
     balloons.splice(idx, 1);
     var cov = window.KemalKamera.cover(cam.video, W, H);
